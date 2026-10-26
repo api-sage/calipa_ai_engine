@@ -1,0 +1,22 @@
+{
+  "version": "1",
+  "status": "inferred, pending confirmation by Finance/Ops",
+  "source": "Inferred from live FCY API entries on 2026-10-25 (transfers ca650882, 828972ad).",
+  "accounts": [
+    {
+      "account_number": "0123456890",
+      "role": "TRANSIENT",
+      "description": "FCY transient account; every GL entry debits or credits it"
+    },
+    {
+      "account_number": "0123445521",
+      "role": "FEE_INCOME",
+      "description": "Receives the transfer charge legs"
+    },
+    {
+      "account_number": "0125548976",
+      "role": "VAT",
+      "description": "Receives the VAT legs"
+    }
+  ]
+}

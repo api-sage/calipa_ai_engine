@@ -1,0 +1,39 @@
+{
+  "version": "1",
+  "status": "development identities only; replaced by SSO group mapping before go-live",
+  "roles": {
+    "auditor": {
+      "can_initiate": true,
+      "can_review": false,
+      "account_roles": ["TRANSIENT", "FEE_INCOME", "VAT"],
+      "objectives": [
+        "transient_account_reconciliation",
+        "fee_vat_leg_completeness",
+        "fx_conversion_check",
+        "duplicate_detection",
+        "transaction_trace"
+      ],
+      "max_period_days": 92
+    },
+    "reviewer": {
+      "can_initiate": false,
+      "can_review": true,
+      "account_roles": ["TRANSIENT", "FEE_INCOME", "VAT"],
+      "objectives": [],
+      "max_period_days": 0
+    },
+    "fee_auditor": {
+      "can_initiate": true,
+      "can_review": false,
+      "account_roles": ["FEE_INCOME", "VAT"],
+      "objectives": ["fee_vat_leg_completeness"],
+      "max_period_days": 31
+    }
+  },
+  "users": {
+    "auditor@bank": ["auditor"],
+    "reviewer@bank": ["reviewer"],
+    "lead@bank": ["auditor", "reviewer"],
+    "fees@bank": ["fee_auditor"]
+  }
+}
