@@ -15,6 +15,7 @@ from calipa.audit_trail.db import connect
 from calipa.audit_trail.store import create_run, list_events, verify_chain
 from calipa.engine.contract import ReconciliationResult
 from calipa.engine.standin import StandInEngine
+from calipa.errors import IntegrityViolation
 from calipa.gateway.fcy import FcyClient
 from calipa.gateway.http import ReadOnlyClient
 from calipa.gateway.rates import snapshot_rates
@@ -122,6 +123,22 @@ def test_persistent_failure_fails_the_run(conn: psycopg.Connection) -> None:
     assert orchestrator(conn, handlers, max_attempts=3).advance(run_id) is S.FAILED
     final = next(e for e in list_events(conn, run_id) if e.state == "FAILED")
     assert "EXTRACTING failed 3 times" in final.payload["reason"]
+
+
+def test_an_integrity_violation_fails_the_run_without_a_retry(conn: psycopg.Connection) -> None:
+    calls: Counter[S] = Counter()
+    handlers = scripted(
+        calls,
+        {
+            S.INTERPRETING: [S.EXTRACTING],
+            S.EXTRACTING: [IntegrityViolation("stored report does not match its hash")],
+        },
+    )
+    run_id = new_run(conn)
+    assert orchestrator(conn, handlers, max_attempts=3).advance(run_id) is S.FAILED
+    assert calls[S.EXTRACTING] == 1
+    final = next(e for e in list_events(conn, run_id) if e.state == "FAILED")
+    assert final.payload["reason"].startswith("EXTRACTING integrity check failed: ")
 
 
 def test_crash_resumes_without_redoing_finished_steps(conn: psycopg.Connection) -> None:
@@ -278,4 +295,6 @@ def test_reference_data_change_blocks_extraction(
     run_id = new_run(conn)
     approve_scope(conn, run_id, tariff_sha256="f" * 64)
     handlers = {S.INTERPRETING: interpret_from_artifact, **steps.handlers()}
-    assert orchestrator(conn, handlers).advance(run_id) is S.FAILED
+    assert orchestrator(conn, handlers, max_attempts=3).advance(run_id) is S.FAILED
+    failures = [e for e in list_events(conn, run_id) if e.event_type == "step_failed"]
+    assert [f.payload["error_type"] for f in failures] == ["IntegrityViolation"]

@@ -23,6 +23,7 @@ from uuid import UUID
 import psycopg
 
 from calipa.audit_trail.store import Run, append_event, get_run, now_utc
+from calipa.errors import IntegrityViolation
 from calipa.orchestrator.lifecycle import (
     AWAITING_HUMAN,
     TERMINAL,
@@ -111,7 +112,7 @@ class Orchestrator:
             context = StepContext(self._conn, run, state, self._actor, self._clock)
             try:
                 nxt = handler(context)
-            except Exception as exc:  # noqa: BLE001 - any step failure is recorded and retried
+            except Exception as exc:  # noqa: BLE001 - every step failure is recorded
                 attempt = self._failures_in_current_state(run_id) + 1
                 append_event(
                     self._conn,
@@ -126,7 +127,10 @@ class Orchestrator:
                         "traceback": traceback.format_exc()[-MAX_ERROR_TEXT:],
                     },
                 )
-                if attempt >= self._max_attempts:
+                # Retrying cannot fix data that no longer matches its record.
+                integrity = isinstance(exc, IntegrityViolation)
+                if integrity or attempt >= self._max_attempts:
+                    why = "integrity check failed" if integrity else f"failed {attempt} times"
                     transition(
                         self._conn,
                         run_id,
@@ -134,8 +138,7 @@ class Orchestrator:
                         actor=self._actor,
                         expected_from=state,
                         payload={
-                            "reason": f"{state.value} failed {attempt} times: "
-                            f"{type(exc).__name__}: {str(exc)[:500]}"
+                            "reason": f"{state.value} {why}: {type(exc).__name__}: {str(exc)[:500]}"
                         },
                     )
                     return RunState.FAILED

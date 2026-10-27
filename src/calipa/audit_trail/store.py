@@ -12,6 +12,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 
 from calipa.canonical import canonical_json, normalize, sha256_hex
+from calipa.errors import RunNotFound
 
 
 def now_utc() -> datetime:
@@ -92,7 +93,7 @@ def get_run(conn: psycopg.Connection, run_id: UUID) -> Run:
         (run_id,),
     ).fetchone()
     if row is None:
-        raise KeyError(f"run {run_id} not found")
+        raise RunNotFound(run_id)
     return _run(row, created=False)
 
 
@@ -160,7 +161,7 @@ def append_event(
             "select 1 from runs where run_id = %s for update", (run_id,)
         ).fetchone()
         if locked is None:
-            raise KeyError(f"run {run_id} not found")
+            raise RunNotFound(run_id)
         last = conn.execute(
             "select seq, row_hash from run_events where run_id = %s order by seq desc limit 1",
             (run_id,),

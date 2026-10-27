@@ -15,6 +15,7 @@ from calipa.audit_trail.store import (
     verify_chain,
 )
 from calipa.canonical import sha256_hex
+from calipa.errors import RunNotFound
 
 # Table -> a column to "update", for the append-only checks.
 TABLES = {
@@ -60,7 +61,7 @@ def test_update_delete_truncate_are_blocked(
         f"truncate {table} cascade",
     ):
         with pytest.raises(psycopg.errors.InsufficientPrivilege, match="append-only"):
-            conn.execute(statement)  # type: ignore[arg-type]
+            conn.execute(statement)
 
 
 def _ensure_rows(conn: psycopg.Connection) -> None:
@@ -172,5 +173,5 @@ def test_tampering_is_detected(conn: psycopg.Connection) -> None:
 
 
 def test_event_for_unknown_run_is_rejected(conn: psycopg.Connection) -> None:
-    with pytest.raises(KeyError):
+    with pytest.raises(RunNotFound):
         append_event(conn, uuid4(), event_type="x", actor="system")

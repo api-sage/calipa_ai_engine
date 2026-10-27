@@ -10,6 +10,7 @@ from uuid import UUID
 import psycopg
 
 from calipa.audit_trail.store import now_utc
+from calipa.errors import IntegrityViolation, RunNotFound
 
 Decision = Literal["approved", "rejected", "reinvestigate"]
 
@@ -63,7 +64,7 @@ def lineage(conn: psycopg.Connection, run_id: UUID) -> list[UUID]:
         (run_id,),
     ).fetchall()
     if not rows:
-        raise KeyError(f"run {run_id} not found")
+        raise RunNotFound(run_id)
     return [row[0] for row in rows]
 
 
@@ -99,7 +100,7 @@ def register_report(
     stored = report_version(conn, run_id)
     assert stored is not None
     if stored.report_sha256 != report_sha256:
-        raise RuntimeError(f"run {run_id} already has a different report")
+        raise IntegrityViolation(f"run {run_id} already has a different report")
     return stored
 
 

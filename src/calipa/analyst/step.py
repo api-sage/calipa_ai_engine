@@ -46,6 +46,7 @@ from calipa.audit_trail.artifacts import (
     require_artifact,
 )
 from calipa.engine.contract import ReconciliationRequest, ReconciliationResult, Severity
+from calipa.errors import IntegrityViolation
 from calipa.llm.client import LLMCallFailed, Outcome, StructuredLLM
 from calipa.llm.prompts import Prompt
 from calipa.llm.tagging import tagged_json
@@ -172,7 +173,7 @@ class AnalyseStep:
             self._tariff.sha256,
             self._catalog.sha256,
         ):
-            raise RuntimeError("reference data changed since reconciliation")
+            raise IntegrityViolation("reference data changed since reconciliation")
         snapshot = latest_artifact(ctx.conn, ctx.run_id, GL_SNAPSHOT, SnapshotArtifact)
         gaps = [*(snapshot[1].limitations if snapshot else []), *result.limitations]
         in_scope = in_scope_exceptions(result.exceptions, scope, self._controls)
@@ -187,7 +188,7 @@ class AnalyseStep:
         for group in groups:
             previous = done.get(group.bundle.group_id)
             if previous is not None and previous[1].bundle_sha256 != group.sha256:
-                raise RuntimeError(f"evidence for {group.bundle.group_id} changed on resume")
+                raise IntegrityViolation(f"evidence for {group.bundle.group_id} changed on resume")
         todo = [
             (position, group)
             for position, group in enumerate(groups)

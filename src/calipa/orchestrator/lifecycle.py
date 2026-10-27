@@ -149,5 +149,5 @@ def transition(
 
 
 def _lock(conn: psycopg.Connection, run_id: UUID) -> None:
-    get_run(conn, run_id)  # raises KeyError for an unknown run
+    get_run(conn, run_id)  # raises RunNotFound for an unknown run
     conn.execute("select 1 from runs where run_id = %s for update", (run_id,))

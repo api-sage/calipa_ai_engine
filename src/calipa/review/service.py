@@ -211,7 +211,7 @@ def _reinvestigation(
 
 
 def _locked(conn: psycopg.Connection, run_id: UUID) -> Run:
-    run = get_run(conn, run_id)  # KeyError for an unknown run
+    run = get_run(conn, run_id)  # RunNotFound for an unknown run
     conn.execute("select 1 from runs where run_id = %s for update", (run_id,))
     return run
 

@@ -22,6 +22,7 @@ from calipa.engine.contract import (
     ReconciliationRequest,
     ReconciliationResult,
 )
+from calipa.errors import IntegrityViolation
 from calipa.gateway.fcy import FcyClient, GLEntry
 from calipa.gateway.rates import rates_between
 from calipa.gateway.snapshot import extract_gl_snapshot
@@ -117,7 +118,7 @@ class Steps:
             self._catalog.sha256,
             self._tariff.sha256,
         ):
-            raise RuntimeError("reference data changed since the scope was approved")
+            raise IntegrityViolation("reference data changed since the scope was approved")
         snap = extract_gl_snapshot(
             self._fcy,
             period_start=scope.period_start,
@@ -198,7 +199,7 @@ class Steps:
             request.request_id,
             request.snapshot_sha256,
         ):
-            raise RuntimeError("engine answered a different request")
+            raise IntegrityViolation("engine answered a different request")
         ref = put_artifact(ctx.conn, ctx.run_id, ENGINE_RESULT, result, created_by=ctx.actor)
         _, scope = require_artifact(ctx.conn, ctx.run_id, APPROVED_SCOPE, ApprovedScope)
         in_scope = in_scope_exceptions(result.exceptions, scope, self._controls)
@@ -238,7 +239,7 @@ def in_scope_exceptions(
     if not scope.control_ids:
         return list(exceptions)
     if scope.control_catalog_sha256 and scope.control_catalog_sha256 != controls.sha256:
-        raise RuntimeError("control catalog changed since the scope was approved")
+        raise IntegrityViolation("control catalog changed since the scope was approved")
     types = {
         ExceptionType(t) for c in scope.control_ids for t in controls.controls[c].exception_types
     }

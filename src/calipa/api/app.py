@@ -54,6 +54,7 @@ from calipa.audit_trail.store import (
     verify_chain,
 )
 from calipa.config import Settings, get_settings
+from calipa.errors import IntegrityViolation, RunNotFound
 from calipa.metrics import collect as collect_metrics
 from calipa.metrics import render as render_metrics
 from calipa.orchestrator.lifecycle import (
@@ -161,7 +162,7 @@ def create_app(deps: ApiDeps) -> FastAPI:
     def visible_run(conn: psycopg.Connection, run_id: UUID, user: str) -> Run:
         try:
             run = get_run(conn, run_id)
-        except KeyError:
+        except RunNotFound:
             raise HTTPException(404, "run not found") from None
         if not can_view(conn, run, user, deps.entitlements):
             raise HTTPException(404, "run not found")
@@ -356,7 +357,7 @@ def _report(conn: psycopg.Connection, run_id: UUID) -> tuple[ReportSummary, Repo
         raise HTTPException(404, "this run has no report yet")
     _, artifact = require_artifact(conn, run_id, REPORT, ReportArtifact)
     if artifact.report_sha256 != version.report_sha256:
-        raise RuntimeError("stored report does not match its recorded version")
+        raise IntegrityViolation("stored report does not match its recorded version")
     return (
         ReportSummary(
             version=version.version,

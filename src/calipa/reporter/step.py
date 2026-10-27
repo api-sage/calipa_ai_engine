@@ -39,6 +39,7 @@ from calipa.audit_trail.artifacts import (
 from calipa.audit_trail.store import get_blob, put_blob
 from calipa.canonical import hash_value, sha256_hex
 from calipa.engine.contract import ReconciliationRequest, ReconciliationResult
+from calipa.errors import IntegrityViolation
 from calipa.llm.client import LLMCallFailed, Outcome, StructuredLLM
 from calipa.llm.prompts import Prompt
 from calipa.llm.tagging import tagged_json
@@ -150,7 +151,7 @@ class ReportStep:
         if stored is not None:
             ref, artifact = stored
             if artifact.manifest.inputs != refs:
-                raise RuntimeError("report inputs changed since the report was written")
+                raise IntegrityViolation("report inputs changed since the report was written")
             return _done(ctx, ref, artifact)
 
         facts = build_facts(inputs)
@@ -254,7 +255,7 @@ class ReportStep:
         if analysis is None:
             in_scope = len(in_scope_exceptions(result.exceptions, scope, self._controls))
             if in_scope:
-                raise RuntimeError("exceptions in scope but no analysis was stored")
+                raise IntegrityViolation("exceptions in scope but no analysis was stored")
             summary = None
         else:
             summary_ref, summary = analysis
@@ -452,5 +453,5 @@ def disclosures(
 def markdown_of(conn: psycopg.Connection, artifact: ReportArtifact) -> str:
     data = get_blob(conn, artifact.manifest.markdown_sha256)
     if sha256_hex(data) != artifact.manifest.markdown_sha256:
-        raise RuntimeError("stored report does not match its hash")
+        raise IntegrityViolation("stored report does not match its hash")
     return data.decode("utf-8")

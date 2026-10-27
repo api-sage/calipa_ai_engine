@@ -16,6 +16,7 @@ import pytest
 from calipa.analyst.categories import CATEGORIES, allowed_categories
 from calipa.analyst.step import user_content
 from calipa.engine.contract import ExceptionType
+from calipa.errors import IntegrityViolation
 from calipa.orchestrator.steps import ApprovedScope, in_scope_exceptions
 from calipa.reference import load_account_catalog, load_control_catalog, load_tariff
 from calipa.synthetic import EXPECTED_ROOT_CAUSE, Anomaly, generate
@@ -181,7 +182,7 @@ def test_only_the_approved_controls_are_in_scope() -> None:
         result.exceptions
     )
     stale = scope.model_copy(update={"control_catalog_sha256": "f" * 64})
-    with pytest.raises(RuntimeError, match="control catalog changed"):
+    with pytest.raises(IntegrityViolation, match="control catalog changed"):
         in_scope_exceptions(result.exceptions, stale, load_control_catalog())
 
 

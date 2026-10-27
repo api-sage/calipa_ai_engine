@@ -6,6 +6,7 @@ import psycopg
 import pytest
 
 from calipa.audit_trail.store import create_run, get_run, list_events, now_utc, verify_chain
+from calipa.errors import RunNotFound
 from calipa.orchestrator.lifecycle import (
     RunState as S,
 )
@@ -104,7 +105,7 @@ def test_start_twice_and_unknown_run(conn: psycopg.Connection) -> None:
     run_id = new_run(conn)
     with pytest.raises(TransitionNotAllowed):
         start(conn, run_id, actor="system")
-    with pytest.raises(KeyError):
+    with pytest.raises(RunNotFound):
         transition(conn, uuid4(), S.INTERPRETING, actor="system")
 
 
