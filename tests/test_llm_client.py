@@ -100,14 +100,11 @@ def call(conn: psycopg.Connection, fake: FakeAnthropic) -> Any:
 
 
 def rows(conn: psycopg.Connection, call_id: UUID) -> tuple[dict[str, Any], dict[str, Any]]:
-    conn.row_factory = psycopg.rows.dict_row
-    try:
-        request = conn.execute("select * from llm_calls where call_id = %s", (call_id,)).fetchone()
-        result = conn.execute(
+    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+        request = cur.execute("select * from llm_calls where call_id = %s", (call_id,)).fetchone()
+        result = cur.execute(
             "select * from llm_call_results where call_id = %s", (call_id,)
         ).fetchone()
-    finally:
-        conn.row_factory = psycopg.rows.tuple_row
     assert request is not None and result is not None
     return request, result
 

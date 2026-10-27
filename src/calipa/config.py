@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     llm_provider: Literal["meta", "anthropic"] = "meta"
     # The Llama API model id. Required for "meta"; no default is guessed.
     llama_model: str | None = None
+    # Provider keys keep the names the SDKs use. Read here too, so a key in `.env`
+    # reaches the SDK (which only looks at the process environment itself).
+    llama_api_key: SecretStr | None = Field(default=None, validation_alias="LLAMA_API_KEY")
+    anthropic_api_key: SecretStr | None = Field(default=None, validation_alias="ANTHROPIC_API_KEY")
     # USD per million tokens on the bank's Llama API contract. Unset: cost unknown.
     llama_price_input_per_mtok: Decimal | None = None
     llama_price_output_per_mtok: Decimal | None = None
