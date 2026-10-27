@@ -29,7 +29,8 @@ from calipa.analyst.schema import (
     NextStep,
 )
 from calipa.analyst.support import unrelated_support
-from calipa.analyst.tokens import Placeholder, render, scan
+from calipa.analyst.tokens import PLACEHOLDER, Placeholder, render, scan
+from calipa.wording import wording_errors
 
 _CLAIM_ID = re.compile(r"^C[1-9][0-9]*$")
 
@@ -323,7 +324,7 @@ def _text_errors(
     """`allowed` None means any placeholder that resolves (an observation choosing what
     it cites); otherwise only those placeholders."""
     found = scan(text)
-    errors = list(found.errors)
+    errors = list(found.errors) + wording_errors(PLACEHOLDER.sub(" ", text))
     for placeholder in found.placeholders:
         item = bundle.item(placeholder.evidence_id)
         if item is None:

@@ -35,7 +35,7 @@ from calipa.interpreter.policy import PolicyContext
 from calipa.interpreter.step import InterpretStep
 from calipa.llm import llm_factory
 from calipa.llm.client import StructuredLLM
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import active_prompt
 from calipa.orchestrator.lifecycle import RunState
 from calipa.orchestrator.runner import Orchestrator, StepHandler, Worker
 from calipa.orchestrator.steps import Steps
@@ -68,7 +68,7 @@ def build_handlers(
         timezone=settings.bank_timezone,
     )
     steps = (
-        InterpretStep(llm=llm, prompt=load_prompt("interpreter", 2), policy=policy),
+        InterpretStep(llm=llm, prompt=active_prompt("interpreter"), policy=policy),
         Steps(
             fcy=fcy,
             engine=StandInEngine(tariff),
@@ -78,14 +78,14 @@ def build_handlers(
         ),
         AnalyseStep(
             llm=llm,
-            prompt=load_prompt("analyst", 3),
+            prompt=active_prompt("analyst"),
             tariff=tariff,
             catalog=catalog,
             controls=controls,
             parallelism=settings.analysis_parallelism if lanes else 1,
             lanes=lanes,
         ),
-        ReportStep(llm=llm, prompt=load_prompt("report", 2), controls=controls),
+        ReportStep(llm=llm, prompt=active_prompt("report"), controls=controls),
     )
     handlers: dict[RunState, StepHandler] = {}
     for step in steps:
