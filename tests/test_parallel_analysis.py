@@ -21,13 +21,13 @@ from calipa.audit_trail.artifacts import list_artifacts, require_artifact
 from calipa.audit_trail.db import connect
 from calipa.audit_trail.store import list_events, verify_chain
 from calipa.llm.client import ClaudeClient, StructuredLLM
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import active_prompt
 from calipa.orchestrator.lifecycle import RunState as S
 from calipa.orchestrator.runner import Orchestrator
 from tests.analyst_helpers import groups, unexplained_answer
-from tests.interpreter_helpers import NOW, FakeRaw
+from tests.interpreter_helpers import NOW
 from tests.test_analyse_step import CATALOG, CONTROLS, TARIFF, _two_groups, analysing_run, findings
-from tests.test_llm_client import message
+from tests.test_llm_client import FakeRaw, message
 
 _GROUP = re.compile(r'"group_id": "(G-[0-9a-f]+)"')
 
@@ -67,7 +67,7 @@ def advance(url: str, conn: psycopg.Connection, fake: ByGroup, run_id: UUID, **k
 
     step = AnalyseStep(
         llm=ClaudeClient(conn, fake, model="claude-opus-5-5"),  # type: ignore[arg-type]
-        prompt=load_prompt("analyst", 3),
+        prompt=active_prompt("analyst"),
         tariff=TARIFF,
         catalog=CATALOG,
         controls=CONTROLS,
@@ -137,7 +137,7 @@ def test_parallel_analysis_needs_lanes() -> None:
     with pytest.raises(ValueError, match="needs lanes"):
         AnalyseStep(
             llm=None,  # type: ignore[arg-type]
-            prompt=load_prompt("analyst", 3),
+            prompt=active_prompt("analyst"),
             tariff=TARIFF,
             catalog=CATALOG,
             controls=CONTROLS,

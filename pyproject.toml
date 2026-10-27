@@ -41,7 +41,7 @@ ignore = ["S101"]  # asserts are used for invariants and in tests
 [tool.mypy]
 strict = true
 python_version = "3.12"
-packages = ["calipa"]
+files = ["src", "tests", "evals"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

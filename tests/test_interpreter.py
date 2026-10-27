@@ -12,7 +12,7 @@ from calipa.interpreter.dates import PeriodUnresolved, resolve_period
 from calipa.interpreter.policy import Approve, Clarify, Deny, Unsupported, decide
 from calipa.interpreter.schema import PeriodSpec
 from calipa.interpreter.validate import check_interpretation
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import active_prompt
 from calipa.orchestrator.lifecycle import RunState
 from calipa.reference import load_control_catalog, load_entitlements
 from tests.interpreter_helpers import NOW, period, policy_context, scope
@@ -205,7 +205,7 @@ def test_a_narrower_entitlement_limits_all_accounts() -> None:
 
 
 def test_the_interpreter_prompt_ships_with_the_package() -> None:
-    prompt = load_prompt("interpreter", 2)
+    prompt = active_prompt("interpreter")
     assert "<conversation>" in prompt.text and len(prompt.sha256) == 64
 
 

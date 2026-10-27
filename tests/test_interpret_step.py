@@ -16,7 +16,7 @@ from calipa.audit_trail.artifacts import require_artifact
 from calipa.audit_trail.store import create_run, list_events, verify_chain
 from calipa.interpreter.step import INTERPRETATION, RESTATE, Interpretation, InterpretStep
 from calipa.llm.client import ClaudeClient
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import active_prompt
 from calipa.orchestrator.lifecycle import RunState as S
 from calipa.orchestrator.lifecycle import transition
 from calipa.orchestrator.runner import Orchestrator
@@ -46,7 +46,7 @@ def new_run(conn: psycopg.Connection, text: str = REQUEST, by: str = "auditor@ba
 def advance(conn: psycopg.Connection, fake: ScriptedAnthropic, run_id: UUID, **kw: Any) -> S:
     step = InterpretStep(
         llm=ClaudeClient(conn, fake, model="claude-opus-5-5"),  # type: ignore[arg-type]
-        prompt=load_prompt("interpreter", 2),
+        prompt=active_prompt("interpreter"),
         policy=policy_context(),
     )
     orchestrator = Orchestrator(

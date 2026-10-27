@@ -17,7 +17,7 @@ from calipa.analyst.step import ANALYSIS, FINDING, AnalyseStep, AnalysisSummary,
 from calipa.audit_trail.artifacts import list_artifacts, put_artifact, require_artifact
 from calipa.audit_trail.store import create_run, list_events, verify_chain
 from calipa.llm.client import ClaudeClient, StructuredLLM
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import ACTIVE, active_prompt, load_prompt
 from calipa.orchestrator.lifecycle import RunState as S
 from calipa.orchestrator.lifecycle import start, transition
 from calipa.orchestrator.runner import Orchestrator
@@ -97,7 +97,7 @@ def orchestrate(
 ) -> S:
     step = AnalyseStep(
         llm=llm,
-        prompt=step_kw.pop("prompt", load_prompt("analyst", 3)),
+        prompt=step_kw.pop("prompt", active_prompt("analyst")),
         tariff=TARIFF,
         catalog=CATALOG,
         controls=CONTROLS,
@@ -136,7 +136,7 @@ def test_a_verified_analysis_becomes_a_finding(conn: psycopg.Connection) -> None
     sent = fake.requests[0]
     assert sent["output_config"]["effort"] == "high"
     assert sent["max_tokens"] == 20_000
-    assert sent["system"][0]["text"] == load_prompt("analyst", 3).text
+    assert sent["system"][0]["text"] == active_prompt("analyst").text
     content = fake.user_content(0)
     for tag in ("exception_group", "evidence", "available_categories", "known_data_gaps"):
         assert f"<{tag}>" in content
@@ -355,8 +355,9 @@ def test_what_is_not_carried_over(conn: psycopg.Connection, tmp_path: Any) -> No
     assert len(fake.requests) == 1 and second.bundle.group_id in fake.user_content(0)
 
     # A different prompt, or reuse switched off, means asking again.
-    (tmp_path / "analyst.v3.md").write_text(load_prompt("analyst", 3).text + "\n")
-    changed = load_prompt("analyst", 3, directory=tmp_path)
+    version = ACTIVE["analyst"]
+    (tmp_path / f"analyst.v{version}.md").write_text(active_prompt("analyst").text + "\n")
+    changed = load_prompt("analyst", version, directory=tmp_path)
     for kw in ({"prompt": changed}, {"reuse_unchanged": False}):
         again = analysing_run(conn, entries, rates=rates, parent=parent)
         fake = ScriptedAnthropic(

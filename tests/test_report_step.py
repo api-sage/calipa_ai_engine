@@ -18,7 +18,7 @@ from calipa.audit_trail.artifacts import put_artifact, require_artifact
 from calipa.audit_trail.store import create_run, get_run, list_events, verify_chain
 from calipa.canonical import hash_value
 from calipa.llm.client import ClaudeClient
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import ACTIVE, active_prompt
 from calipa.orchestrator.lifecycle import RunState as S
 from calipa.orchestrator.lifecycle import start, transition
 from calipa.orchestrator.runner import Orchestrator, StepContext
@@ -59,12 +59,12 @@ def orchestrator(conn: psycopg.Connection, fake: ScriptedAnthropic, **kw: Any) -
     llm = ClaudeClient(conn, fake, model="claude-opus-5-5")  # type: ignore[arg-type]
     analyse = AnalyseStep(
         llm=llm,
-        prompt=load_prompt("analyst", 3),
+        prompt=active_prompt("analyst"),
         tariff=TARIFF,
         catalog=CATALOG,
         controls=CONTROLS,
     )
-    report = ReportStep(llm=llm, prompt=load_prompt("report", 2), controls=CONTROLS, **kw)
+    report = ReportStep(llm=llm, prompt=active_prompt("report"), controls=CONTROLS, **kw)
     return Orchestrator(
         conn,
         {**analyse.handlers(), **report.handlers()},
@@ -88,11 +88,11 @@ def test_a_checked_narrative_becomes_the_report(conn: psycopg.Connection) -> Non
     assert artifact.narrative_source == "ai" and artifact.flags == []
     assert artifact.used_attempt == 1 and artifact.narrative.template_sections() == []
     assert artifact.manifest.prompt is not None
-    assert artifact.manifest.prompt.sha256 == load_prompt("report", 2).sha256
+    assert artifact.manifest.prompt.sha256 == active_prompt("report").sha256
 
     sent = fake.requests[1]
     assert sent["output_config"]["effort"] == "medium"
-    assert sent["system"][0]["text"] == load_prompt("report", 2).text
+    assert sent["system"][0]["text"] == active_prompt("report").text
     content = fake.user_content(1)
     for tag in ("run_facts", "verified_findings", "finding_keys"):
         assert f"<{tag}>" in content
@@ -216,7 +216,7 @@ def test_a_clean_run_reports_without_ai(conn: psycopg.Connection) -> None:
 def test_a_retried_step_reuses_the_stored_report(conn: psycopg.Connection) -> None:
     run_id, fake, artifact = run_to_review(conn, GOOD)
     llm = ClaudeClient(conn, fake, model="claude-opus-5-5")  # type: ignore[arg-type]
-    step = ReportStep(llm=llm, prompt=load_prompt("report", 2), controls=CONTROLS)
+    step = ReportStep(llm=llm, prompt=active_prompt("report"), controls=CONTROLS)
     ctx = StepContext(conn, get_run(conn, run_id), S.REPORTING, "test", lambda: NOW)
     again = step.report(ctx)  # no scripted reply left: a new call would fail
     assert again.payload["report_sha256"] == artifact.report_sha256
@@ -227,4 +227,5 @@ def test_the_report_records_every_ai_call(conn: psycopg.Connection) -> None:
     text = markdown_of(conn, artifact)
     section = text.split("## 8. How AI was used", 1)[1].split("## 9.", 1)[0]
     assert section.count("claude-opus-5-5 | claude-opus-5-5 | ok") == 3  # P2, P3 twice
-    assert "analyst.v3" in section and "report.v2" in section
+    assert f"analyst.v{ACTIVE['analyst']}" in section
+    assert f"report.v{ACTIVE['report']}" in section

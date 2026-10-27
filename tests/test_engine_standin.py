@@ -5,7 +5,12 @@ from decimal import Decimal
 from uuid import UUID
 
 from calipa.canonical import hash_value
-from calipa.engine.contract import ExceptionType, Severity
+from calipa.engine.contract import (
+    EngineException,
+    ExceptionType,
+    ReconciliationResult,
+    Severity,
+)
 from calipa.engine.standin import StandInEngine
 from calipa.reference import load_tariff
 from tests.engine_helpers import build_request
@@ -19,7 +24,9 @@ def run(raw: list[dict[str, object]]):  # type: ignore[no-untyped-def]
     return StandInEngine(load_tariff()).reconcile(build_request(raw))
 
 
-def by_transfer(result, transfer_id):  # type: ignore[no-untyped-def]
+def by_transfer(
+    result: ReconciliationResult, transfer_id: UUID
+) -> dict[ExceptionType, EngineException]:
     return {e.type: e for e in result.exceptions if e.transfer_id == transfer_id}
 
 
@@ -30,9 +37,12 @@ def test_real_transfer_0001_is_missing_fee_and_vat() -> None:
         ExceptionType.VAT_LEG_MISSING,
         ExceptionType.TRANSIENT_RESIDUAL,
     }
-    assert found[ExceptionType.FEE_LEG_MISSING].expected.amount == Decimal("1.47")
-    assert found[ExceptionType.VAT_LEG_MISSING].expected.amount == Decimal("0.75")
+    fee = found[ExceptionType.FEE_LEG_MISSING].expected
+    vat = found[ExceptionType.VAT_LEG_MISSING].expected
     residual = found[ExceptionType.TRANSIENT_RESIDUAL]
+    assert fee is not None and vat is not None and residual.actual is not None
+    assert fee.amount == Decimal("1.47")
+    assert vat.amount == Decimal("0.75")
     assert (residual.actual.amount, residual.actual.currency.value) == (Decimal("2.22"), "GBP")
     assert residual.details["implied_principal"] == "10"
 

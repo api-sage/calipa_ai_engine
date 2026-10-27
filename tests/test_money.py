@@ -19,7 +19,7 @@ def test_floats_are_rejected_everywhere() -> None:
     with pytest.raises(MoneyError):
         Money(13.58, Currency.USD)  # type: ignore[arg-type]
     with pytest.raises(MoneyError):
-        Money.of(True, "USD")  # type: ignore[arg-type]
+        Money.of(True, "USD")
 
 
 def test_non_finite_is_rejected() -> None:

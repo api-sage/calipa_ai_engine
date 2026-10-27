@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from calipa.analyst.schema import ExceptionAnalysis
+from calipa.analyst.schema import ExceptionAnalysis, RootCause
 from calipa.analyst.support import RULES, ruled_out, unrelated_support
 from calipa.analyst.verify import check_analysis
 from tests.analyst_helpers import (
@@ -48,7 +48,7 @@ def _entry(n: int, amount: str, credited: str = "FEE_INCOME") -> dict[str, str]:
     }
 
 
-def _out(*items: dict[str, str]) -> dict[str, str]:
+def _out(*items: dict[str, str]) -> dict[RootCause, str]:
     everything = [("E1", EXC), *((f"E{i + 2}", f) for i, f in enumerate(items))]
     return ruled_out("E1", EXC, everything, RULES)
 
