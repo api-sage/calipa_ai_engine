@@ -106,6 +106,50 @@ def test_text_that_states_values_or_opinions_is_rejected(insert: str, error: str
     assert any(error in e for e in errors), errors
 
 
+RANKED = "come only from the facts"
+H3 = "The evidence is also consistent with {{fact:G1.h3}}."
+
+
+@pytest.mark.parametrize(
+    ("before", "after", "passes"),
+    [
+        (H1, "", True),
+        (H1 + "It has highest severity {{fact:G1.severity}}. ", "", True),
+        (H1 + "Its highest severity is {{fact:G1.severity}}. ", "", True),
+        (H1 + "It is the highest severity here. ", "", False),
+        (H1 + "Its severity is highest. ", "", False),
+        (
+            H1,
+            H3.replace("The evidence is also consistent with", "A third possible explanation is"),
+            True,
+        ),
+        (H1, H3.replace("}}.", "}} as the third hypothesis."), True),
+        (
+            H1,
+            H3.replace("The evidence is also consistent with", "A fourth possible explanation is"),
+            False,
+        ),
+        (H1, H3.replace("}}.", "}} as the second hypothesis."), False),
+    ],
+)
+def test_words_that_name_the_fact_beside_them_pass_only_there(
+    before: str, after: str, passes: bool
+) -> None:
+    text = BASE + before + TAIL
+    if after:
+        text = text.replace(H3, after)
+        assert after in text
+    errors = g1_errors(text)
+    assert (errors == []) is passes, errors
+
+
+def test_minor_units_pass_only_after_a_difference_in_minor_units() -> None:
+    named = BASE + H1 + "The gap is {{fact:G1.E1.difference_in_minor_units}} minor units. " + TAIL
+    assert not any(RANKED in e for e in g1_errors(named))
+    loose = BASE + H1 + "The gap is minor. " + TAIL
+    assert any(RANKED in e for e in g1_errors(loose))
+
+
 def test_unknown_and_foreign_facts_are_rejected() -> None:
     errors = g1_errors(BASE + H1 + "It is {{fact:G1.nothing}}. " + TAIL)
     assert any("there is no fact 'G1.nothing'" in e for e in errors)
@@ -167,7 +211,7 @@ def test_each_finding_once_and_only_real_findings() -> None:
 
 
 def test_patterns_link_real_findings_and_use_only_their_facts() -> None:
-    good = {
+    good: dict[str, Any] = {
         "text": "Both {{fact:G1.exceptions}} and {{fact:G2.exceptions}} concern the same day.",
         "finding_keys": ["G1", "G2"],
     }

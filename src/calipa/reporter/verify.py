@@ -8,8 +8,9 @@ currency next to its own amount, the only place a currency may stand.
 
 Text outside placeholders holds no digits of any script, number, ordinal or calendar
 words, currency words, symbols or codes, ids or role labels, severity, confidence or
-likelihood words, markup, invisible or non-Latin characters, and nothing that reads
-as an audit opinion or a certainty about a cause. It may not name, even in other
+likelihood words, markup, invisible or non-Latin characters, and nothing
+calipa.wording bans (opinions, certainty, review decisions, outside confirmations,
+instructions). It may not name, even in other
 words, a root cause that none of the verified hypotheses in view has.
 
 A finding's narrative must name its exceptions and, if it was analysed, present
@@ -33,6 +34,7 @@ from calipa.analyst.step import Finding
 from calipa.analyst.tokens import CODES, LABEL, unit_errors, value_errors
 from calipa.reporter.facts import CATEGORY_LABELS, Fact
 from calipa.reporter.schema import ReportNarrative
+from calipa.wording import wording_errors
 
 _Allowed = Callable[[str], bool]
 
@@ -49,61 +51,39 @@ _RANKED = re.compile(
     r"exclud\w*|best explanation|strong\w*|weak\w*)\b",
     re.IGNORECASE,
 )
-_BANNED = (
-    (
-        re.compile(
-            r"\b(ineffective\w*|effectiveness|controls?\b[^.]{0,40}\beffective|"
-            r"controls? (failed|worked|operated|broke down)|deficien\w*|"
-            r"(in)?adequa\w*|accura(te|cy)|inaccura\w*|reliab\w*|unreliab\w*)\b",
-            re.IGNORECASE,
-        ),
-        "control effectiveness",
-    ),
-    (
-        re.compile(r"\b((non-?)?complian\w*|breach\w*|violat\w*|regulator\w*)\b", re.IGNORECASE),
-        "compliance",
-    ),
-    (
-        re.compile(r"\b((im)?material(ity|ly)?|misstat\w*|significan\w*)\b", re.IGNORECASE),
-        "materiality",
-    ),
-    (
-        re.compile(
-            r"(\w*fraud\w*|\blaunder\w*|\bstole\w*|\btheft\b|\bthie(f|ves)\b|\bembezzl\w*|"
-            r"\bmisappropriat\w*|\bconceal\w*|\bcollu\w*|\bmanipulat\w*)",
-            re.IGNORECASE,
-        ),
-        "fraud",
-    ),
-    (
-        re.compile(
-            r"\b(intent\w*|intend\w*|deliberat\w*|on purpose|knowing(ly)?|wilful\w*|"
-            r"willful\w*|negligen\w*|misconduct|malicious\w*)\b",
-            re.IGNORECASE,
-        ),
-        "intent or misconduct",
-    ),
-    (
-        re.compile(
-            r"\b(audit opinion|our opinion|in my opinion|we conclude|conclusion|fairly stated|"
-            r"true and fair|(un)?qualified opinion|adverse opinion|assurance|satisf(ied|actory)|"
-            r"came to our attention|no exceptions? of note)\b",
-            re.IGNORECASE,
-        ),
-        "an audit opinion",
-    ),
-    (
-        re.compile(
-            r"\b(root cause|the cause (is|was)|is the cause|was the cause|"
-            r"(is|was|were|are) caused by|resulted from|must have|definite\w*|certain\w*|"
-            r"undoubted\w*|without (a )?doubt|beyond (a |any )?doubt|conclusive\w*|clearly|"
-            r"obvious\w*|evident\w*|unambiguous\w*|proves|proven|confirms|demonstrat\w*|"
-            r"establish(es|ed))\b",
-            re.IGNORECASE,
-        ),
-        "certainty about a cause",
-    ),
+# Words that name the fact beside them rather than judge: "highest severity
+# {{fact:G1.severity}}", "{{fact:...difference_in_minor_units}} minor units", and a
+# hypothesis's rank, "a third possible explanation is {{fact:G1.h3}}" or "{{fact:G1.h3}}
+# as the third hypothesis". Taken out before the word checks; a rank that is not the
+# rank of the hypothesis it stands by is an error.
+_FACT_NAMES = re.compile(
+    r"\bhighest severity( of| is)? (?=\{\{fact:[A-Za-z0-9_]+\.severity\}\})|"
+    r"(?<=_minor_units\}\}) minor units?\b|"
+    r"\b(a|the) (?P<before>first|second|third|fourth|fifth) (possible |further )?"
+    r"(explanation|hypothesis) is (?=\{\{fact:G[0-9]+\.h(?P<next>[0-9])\}\})|"
+    r"(?<=\.h(?P<prev>[0-9])\}\}) as the (?P<after>first|second|third|fourth|fifth) hypothesis\b",
+    re.IGNORECASE,
 )
+_ORDINALS = {"first": "1", "second": "2", "third": "3", "fourth": "4", "fifth": "5"}
+
+
+def _wrong_rank(found: re.Match[str]) -> bool:
+    word, rank = found["before"] or found["after"], found["next"] or found["prev"]
+    return word is not None and _ORDINALS[word.lower()] != rank
+
+
+def _rank_errors(text: str) -> list[str]:
+    return [
+        f"{found.group().strip()!r} gives a hypothesis another hypothesis's rank"
+        for found in _FACT_NAMES.finditer(text)
+        if _wrong_rank(found)
+    ]
+
+
+def _without_fact_names(text: str) -> str:
+    return _FACT_NAMES.sub(lambda found: found.group() if _wrong_rank(found) else " ", text)
+
+
 # Words that name a root cause; allowed only where a verified hypothesis has it.
 _CAUSE_WORDS: dict[str, re.Pattern[str]] = {
     "rounding_difference": re.compile(r"\bround(ing|ed|s)?\b", re.IGNORECASE),
@@ -286,9 +266,10 @@ def _text_errors(
             errors.append(f"{match.group()} belongs to another finding")
         errors += unit_errors(match.group(), key.rsplit(".", 1)[-1], text[match.end() :])
     errors += _placement_errors(text, matches)
+    errors += _rank_errors(text)
     if required and not matches:
         errors.append("must cite facts with {{fact:KEY}} placeholders")
-    rest = FACT.sub(" ", text)
+    rest = FACT.sub(" ", _without_fact_names(text))
     errors += value_errors(rest)  # also rejects invisible and lookalike characters
     plain = unicodedata.normalize("NFKC", rest)
     for pattern, what in (
@@ -305,9 +286,7 @@ def _text_errors(
             f"{found.group()!r}: severity, confidence and likelihood come only from the "
             "facts and the rank order"
         )
-    for pattern, what in _BANNED:
-        for found in pattern.finditer(plain):
-            errors.append(f"{found.group()!r} reads as {what}, which is the auditor's call")
+    errors += wording_errors(plain)
     lowered = plain.lower()
     present = set(categories) | (_REVERSALS if categories & _REVERSALS else set())
     for category, label in CATEGORY_LABELS.items():

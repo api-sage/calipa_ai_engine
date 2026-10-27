@@ -30,7 +30,7 @@ from calipa.config import get_settings
 from calipa.interpreter.policy import PolicyContext
 from calipa.interpreter.step import InterpretStep
 from calipa.llm import make_llm
-from calipa.llm.prompts import load_prompt
+from calipa.llm.prompts import active_prompt
 from calipa.orchestrator.runner import Orchestrator
 from calipa.orchestrator.steps import APPROVED_SCOPE, ApprovedScope
 from calipa.reference import (
@@ -90,7 +90,7 @@ def main() -> int:
         migrate(conn)
         step = InterpretStep(
             llm=make_llm(conn, settings),
-            prompt=load_prompt("interpreter", 2),
+            prompt=active_prompt("interpreter"),
             policy=policy,
         )
         for case in cases:

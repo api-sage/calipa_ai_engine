@@ -9,8 +9,11 @@ Design: see the "Calipa Intelligence Layer" design doc (v0.2).
 uv sync                      # install
 cp .env.example .env         # then fill in credentials (never commit .env)
 uv run pytest                # tests; needs a local Postgres (creates and drops a temp DB)
-uv run ruff check . && uv run mypy
+uv run ruff check . && uv run ruff format --check . && uv run mypy   # src, tests, evals
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every pull request, with a
+Postgres service; there a database the tests cannot reach is a failure, not a skip.
 
 Layout:
 
@@ -34,7 +37,7 @@ Layout:
 - `src/calipa/api/` – FastAPI: start runs (idempotent), run status, server-sent events, report (JSON and Markdown), clarification answers, review
 - `src/calipa/worker.py` – background worker wiring every step; advances runs the API records and anchors the audit trail
 - `src/calipa/metrics.py` – operational metrics from the audit trail, served at `GET /metrics` (aggregates only)
-- `src/calipa/prompts/` – versioned prompt files (`interpreter.v2.md`, `analyst.v3.md`, `report.v2.md`)
+- `src/calipa/prompts/` – versioned prompt files; `ACTIVE` in `src/calipa/llm/prompts.py` names the version each step uses
 - `evals/` – eval sets and runners (`evals/p1/`, `evals/run_p1.py`, `evals/p2/`, `evals/run_p2.py`, `evals/p3/`, `evals/run_p3.py`)
 - `ops/db_roles.sql` – production roles (app can only SELECT/INSERT)
 - `ops/alerts.yml` – Prometheus alert rules for `/metrics`
