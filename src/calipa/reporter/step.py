@@ -40,9 +40,9 @@ from calipa.audit_trail.store import get_blob, put_blob
 from calipa.canonical import hash_value, sha256_hex
 from calipa.engine.contract import ReconciliationRequest, ReconciliationResult
 from calipa.errors import IntegrityViolation
-from calipa.llm.client import LLMCallFailed, Outcome, StructuredLLM
+from calipa.llm.checked import Attempt, call_checked
+from calipa.llm.client import StructuredLLM
 from calipa.llm.prompts import Prompt
-from calipa.llm.tagging import tagged_json
 from calipa.orchestrator.lifecycle import RunState
 from calipa.orchestrator.runner import Next, StepContext, StepHandler
 from calipa.orchestrator.steps import (
@@ -71,7 +71,6 @@ REPORT = "report"
 MAX_ATTEMPTS = 2
 P3_MAX_TOKENS = 16_000
 DEFAULT_MAX_CALLS = 2
-_BAD_ANSWER = {Outcome.REFUSAL, Outcome.SCHEMA_INVALID, Outcome.EMPTY, Outcome.MAX_TOKENS}
 
 
 class _Model(BaseModel):
@@ -297,68 +296,52 @@ class ReportStep:
         findings: dict[str, Finding],
     ) -> tuple[list[ReportAttempt], str]:
         """P3's attempts, and why the calls stopped working if they did."""
-        base = user_content(inputs, facts)
-        content = base
-        attempts: list[ReportAttempt] = []
-        for n in range(1, MAX_ATTEMPTS + 1):
-            try:
-                result = self._llm.structured(
-                    step="report",
-                    prompt=self._prompt,
-                    user_content=content,
-                    output_model=ReportNarrative,
-                    effort="medium",
-                    max_tokens=P3_MAX_TOKENS,
-                    run_id=ctx.run_id,
-                )
-            except LLMCallFailed as exc:
-                ctx.record(
-                    "report_attempt",
-                    {"attempt": n, "llm_call_id": str(exc.call_id), "outcome": exc.outcome.value},
-                )
-                if exc.outcome not in _BAD_ANSWER:
-                    return attempts, f"the P3 call failed ({exc.outcome.value})"
-                attempts.append(
-                    ReportAttempt(
-                        attempt=n,
-                        llm_call_id=exc.call_id,
-                        outcome=exc.outcome.value,
-                        output=None,
-                        check=None,
-                    )
-                )
-                if exc.outcome is Outcome.REFUSAL:
-                    break
-                errors = [f"the previous answer was unusable ({exc.outcome.value})"]
-                previous = None
-            else:
-                check = check_report(result.output, facts, findings)
-                attempts.append(
-                    ReportAttempt(
-                        attempt=n,
-                        llm_call_id=result.call_id,
-                        outcome="ok",
-                        output=result.output,
-                        check=check,
-                    )
-                )
-                errors = check.errors()
-                ctx.record(
-                    "report_attempt",
-                    {
-                        "attempt": n,
-                        "llm_call_id": str(result.call_id),
-                        "outcome": "ok",
-                        "errors": len(errors),
-                    },
-                )
-                if not errors:
-                    break
-                previous = result.output.model_dump(mode="json")
-            content = (
-                f"{base}\n<previous_answer>\n{tagged_json(previous)}\n</previous_answer>\n"
-                f"<errors_to_fix>\n{tagged_json(errors)}\n</errors_to_fix>"
+
+        def record(attempt: Attempt[ReportNarrative, ReportCheck]) -> None:
+            ctx.record(
+                "report_attempt",
+                {
+                    "attempt": attempt.number,
+                    "llm_call_id": str(attempt.call_id),
+                    "outcome": attempt.outcome.value,
+                    "errors": len(attempt.errors),
+                },
             )
+
+        checked = call_checked(
+            self._llm,
+            step="report",
+            prompt=self._prompt,
+            content=user_content(inputs, facts),
+            output_model=ReportNarrative,
+            check=lambda output: check_report(output, facts, findings),
+            effort="medium",
+            max_attempts=MAX_ATTEMPTS,
+            max_tokens=P3_MAX_TOKENS,
+            run_id=ctx.run_id,
+            on_attempt=record,
+        )
+        attempts = [
+            ReportAttempt(
+                attempt=a.number,
+                llm_call_id=a.call_id,
+                outcome=a.outcome.value,
+                output=a.output,
+                check=a.check,
+            )
+            for a in checked.attempts
+        ]
+        if checked.failure is not None:
+            # The report still comes out, as template text; the failed call is recorded.
+            ctx.record(
+                "report_attempt",
+                {
+                    "attempt": len(attempts) + 1,
+                    "llm_call_id": str(checked.failure.call_id),
+                    "outcome": checked.failure.outcome.value,
+                },
+            )
+            return attempts, f"the P3 call failed ({checked.failure.outcome.value})"
         failure = "" if any(a.check for a in attempts) else "P3 gave no usable answer"
         return attempts, failure
 

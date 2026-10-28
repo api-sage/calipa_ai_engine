@@ -47,7 +47,8 @@ from calipa.audit_trail.artifacts import (
 )
 from calipa.engine.contract import ReconciliationRequest, ReconciliationResult, Severity
 from calipa.errors import IntegrityViolation
-from calipa.llm.client import LLMCallFailed, Outcome, StructuredLLM
+from calipa.llm.checked import call_checked
+from calipa.llm.client import StructuredLLM
 from calipa.llm.prompts import Prompt
 from calipa.llm.tagging import tagged_json
 from calipa.orchestrator.lifecycle import RunState
@@ -74,7 +75,6 @@ DEFAULT_MAX_COST_USD = Decimal("10")
 DEFAULT_MAX_CALLS = 60
 # Stays under the SDK's limit for non-streaming requests.
 P2_MAX_TOKENS = 20_000
-_BAD_ANSWER = {Outcome.SCHEMA_INVALID, Outcome.EMPTY, Outcome.MAX_TOKENS}
 
 
 class _Model(BaseModel):
@@ -337,65 +337,42 @@ class AnalyseStep:
         """P2 and V2 for one group. Touches the database only through `llm`, so it can
         run on another thread; the events it would record are returned instead."""
         bundle = group.bundle
-        base = user_content(bundle)
-        content = base
-        attempts: list[Attempt] = []
-        events: list[dict[str, Any]] = []
-        refused = False
-        for n in range(1, MAX_ATTEMPTS + 1):
-            try:
-                result = llm.structured(
-                    step="analyse",
-                    prompt=self._prompt,
-                    user_content=content,
-                    output_model=ExceptionAnalysis,
-                    effort="high",
-                    max_tokens=P2_MAX_TOKENS,
-                    run_id=run_id,
-                )
-            except LLMCallFailed as exc:
-                if exc.outcome is not Outcome.REFUSAL and exc.outcome not in _BAD_ANSWER:
-                    raise  # the call itself failed; the orchestrator retries the step
-                attempt = Attempt(
-                    attempt=n,
-                    llm_call_id=exc.call_id,
-                    outcome=exc.outcome.value,
-                    output=None,
-                    report=None,
-                )
-                errors = [f"the previous answer was unusable ({exc.outcome.value})"]
-                refused = exc.outcome is Outcome.REFUSAL
-            else:
-                report = check_analysis(result.output, bundle)
-                attempt = Attempt(
-                    attempt=n,
-                    llm_call_id=result.call_id,
-                    outcome="ok",
-                    output=result.output,
-                    report=report,
-                )
-                errors = report.errors()
-            attempts.append(attempt)
-            events.append(
-                {
-                    "group_id": bundle.group_id,
-                    "attempt": n,
-                    "llm_call_id": str(attempt.llm_call_id),
-                    "outcome": attempt.outcome,
-                    "errors": len(errors),
-                    "passing_hypotheses": (
-                        len(attempt.report.passing_hypotheses()) if attempt.report else 0
-                    ),
-                },
+        checked = call_checked(
+            llm,
+            step="analyse",
+            prompt=self._prompt,
+            content=user_content(bundle),
+            output_model=ExceptionAnalysis,
+            check=lambda output: check_analysis(output, bundle),
+            effort="high",
+            max_attempts=MAX_ATTEMPTS,
+            max_tokens=P2_MAX_TOKENS,
+            run_id=run_id,
+        )
+        if checked.failure is not None:
+            raise checked.failure  # the call itself failed; the orchestrator retries the step
+        attempts = [
+            Attempt(
+                attempt=a.number,
+                llm_call_id=a.call_id,
+                outcome=a.outcome.value,
+                output=a.output,
+                report=a.check,
             )
-            if refused or not errors:
-                break
-            previous = attempt.output.model_dump(mode="json") if attempt.output else None
-            content = (
-                f"{base}\n<previous_answer>\n{tagged_json(previous)}\n</previous_answer>\n"
-                f"<errors_to_fix>\n{tagged_json(errors)}\n</errors_to_fix>"
-            )
-        return Analysed(_decide(group, attempts, refused=refused), events)
+            for a in checked.attempts
+        ]
+        events: list[dict[str, Any]] = [
+            {
+                "group_id": bundle.group_id,
+                "attempt": a.number,
+                "llm_call_id": str(a.call_id),
+                "outcome": a.outcome.value,
+                "errors": len(a.errors),
+                "passing_hypotheses": len(a.check.passing_hypotheses()) if a.check else 0,
+            }
+            for a in checked.attempts
+        ]
+        return Analysed(_decide(group, attempts, refused=checked.refused), events)
 
 
 def user_content(bundle: EvidenceBundle) -> str:

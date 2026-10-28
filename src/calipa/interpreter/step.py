@@ -1,7 +1,8 @@
 """The INTERPRETING step: P1, then V1, then the policy decision.
 
-P1 gets one retry with V1's errors listed. If the second answer still fails V1, the
-auditor is asked to restate the request. Questions are capped by the lifecycle; once
+P1 gets one retry with V1's errors listed (calipa.llm.checked). If the second answer
+still fails V1, the auditor is asked to restate the request; if P1 refuses, the run
+is escalated. Questions are capped by the lifecycle; once
 the cap is reached the run is escalated instead of asking again.
 """
 
@@ -25,7 +26,8 @@ from calipa.interpreter.policy import (
 )
 from calipa.interpreter.schema import InterpretedScope
 from calipa.interpreter.validate import check_interpretation
-from calipa.llm.client import LLMCallFailed, Outcome, StructuredLLM
+from calipa.llm.checked import Attempt, call_checked
+from calipa.llm.client import StructuredLLM
 from calipa.llm.prompts import Prompt
 from calipa.llm.tagging import tagged_json
 from calipa.orchestrator.lifecycle import MAX_CLARIFICATION_ROUNDS, RunState, count_entries
@@ -45,8 +47,14 @@ RESTATE = (
     "I could not interpret the request reliably. Please restate what you want "
     "checked, for which period, and on which accounts."
 )
-# Failures that mean "this answer was unusable", as opposed to the call failing.
-_BAD_ANSWER = {Outcome.SCHEMA_INVALID, Outcome.EMPTY, Outcome.MAX_TOKENS}
+
+
+@dataclass(frozen=True, slots=True)
+class V1Check:
+    found: list[str]
+
+    def errors(self) -> list[str]:
+        return self.found
 
 
 class Interpretation(BaseModel):
@@ -135,55 +143,48 @@ class InterpretStep:
 
     def interpret(self, ctx: StepContext) -> Next:
         conversation = build_conversation(ctx.conn, ctx.run)
-        base = self.user_content(conversation)
-        content = base
-        call_ids: list[str] = []
-        attempt_errors: list[list[str]] = []
-        output: InterpretedScope | None = None
 
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            try:
-                result = self._llm.structured(
-                    step="interpret",
-                    prompt=self._prompt,
-                    user_content=content,
-                    output_model=InterpretedScope,
-                    effort="low",
-                    run_id=ctx.run_id,
-                )
-            except LLMCallFailed as exc:
-                call_ids.append(str(exc.call_id))
-                if exc.outcome is Outcome.REFUSAL:
-                    reason = "the model declined to interpret the request"
-                    return self._finish(
-                        ctx, call_ids, attempt_errors, None, RunState.ESCALATED, reason
-                    )
-                if exc.outcome not in _BAD_ANSWER:
-                    raise  # the call itself failed; the orchestrator retries the step
-                errors = [f"the previous answer was unusable ({exc.outcome.value})"]
-                candidate = None
-            else:
-                call_ids.append(str(result.call_id))
-                candidate = result.output
-                errors = check_interpretation(
+        def check(candidate: InterpretedScope) -> V1Check:
+            return V1Check(
+                check_interpretation(
                     candidate,
                     controls=self._policy.controls,
                     auditor_text=conversation.auditor_text,
                 )
-            attempt_errors.append(errors)
-            ctx.record(
-                "interpretation_attempt",
-                {"attempt": attempt, "llm_call_id": call_ids[-1], "errors": errors},
-            )
-            if not errors:
-                output = candidate
-                break
-            previous = candidate.model_dump(mode="json") if candidate else None
-            content = (
-                f"{base}\n<previous_answer>\n{tagged_json(previous)}\n</previous_answer>\n"
-                f"<errors_to_fix>\n{tagged_json(errors)}\n</errors_to_fix>"
             )
 
+        def record(attempt: Attempt[InterpretedScope, V1Check]) -> None:
+            ctx.record(
+                "interpretation_attempt",
+                {
+                    "attempt": attempt.number,
+                    "llm_call_id": str(attempt.call_id),
+                    "outcome": attempt.outcome.value,
+                    "errors": attempt.errors,
+                },
+            )
+
+        checked = call_checked(
+            self._llm,
+            step="interpret",
+            prompt=self._prompt,
+            content=self.user_content(conversation),
+            output_model=InterpretedScope,
+            check=check,
+            effort="low",
+            max_attempts=MAX_ATTEMPTS,
+            run_id=ctx.run_id,
+            on_attempt=record,
+        )
+        if checked.failure is not None:
+            raise checked.failure  # the call itself failed; the orchestrator retries the step
+        call_ids = [str(a.call_id) for a in checked.attempts]
+        attempt_errors = [a.errors for a in checked.attempts]
+        if checked.refused:
+            reason = "the model declined to interpret the request"
+            return self._finish(ctx, call_ids, attempt_errors, None, RunState.ESCALATED, reason)
+        passed = checked.passed
+        output = passed.output if passed is not None else None
         if output is None:
             return self._ask(ctx, call_ids, attempt_errors, None, RESTATE, "interpretation failed")
 
