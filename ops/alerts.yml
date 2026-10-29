@@ -1,0 +1,76 @@
+# Prometheus alert rules for the metrics served at GET /metrics (src/calipa/metrics.py).
+# Thresholds are starting points; tune them once real volumes are known.
+groups:
+  - name: calipa
+    rules:
+      - alert: CalipaRunStalled
+        expr: calipa_runs_stalled > 0
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "A run needing work has had no event for 15 minutes"
+          action: "Check the worker is running (python -m calipa.worker) and its logs."
+
+      - alert: CalipaRunsFailing
+        expr: calipa_runs_failed_24h > 0
+        labels: {severity: ticket}
+        annotations:
+          summary: "{{ $value }} run(s) failed in the last 24h"
+          action: "GET /runs/{id}/events for the step_failed events and their errors."
+
+      - alert: CalipaModelCallsUnfinished
+        expr: calipa_llm_calls_unfinished > 0
+        labels: {severity: ticket}
+        annotations:
+          summary: "A model call started over an hour ago has no recorded result"
+          action: "A worker died mid-call; the run is retried, but check for crashes."
+
+      - alert: CalipaModelErrors
+        expr: >
+          sum(calipa_llm_calls_24h{outcome=~"api_error|connection_error"})
+          / clamp_min(sum(calipa_llm_calls_24h), 1) > 0.2
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Over 20% of model calls in 24h failed at the API"
+
+      - alert: CalipaModelCostUnknown
+        expr: calipa_llm_calls_unpriced_24h > 0
+        labels: {severity: ticket}
+        annotations:
+          summary: "Model calls have no price, so the per-run cost cap cannot apply"
+          action: "Set CALIPA_LLAMA_PRICE_INPUT_PER_MTOK and _OUTPUT_PER_MTOK."
+
+      - alert: CalipaModelSpendHigh
+        expr: calipa_llm_cost_usd_24h > 200
+        labels: {severity: ticket}
+        annotations:
+          summary: "Model spend over USD 200 in 24h"
+
+      - alert: CalipaBankApiErrors
+        expr: calipa_bank_call_errors_24h / clamp_min(calipa_bank_calls_24h, 1) > 0.1
+        for: 15m
+        labels: {severity: ticket}
+        annotations:
+          summary: "Over 10% of bank API calls in 24h failed"
+
+      - alert: CalipaAuditTrailNotAnchored
+        expr: calipa_unanchored_seconds > 3600
+        labels: {severity: page}
+        annotations:
+          summary: "Audit-trail events over an hour old are not anchored outside the database"
+          action: "Check CALIPA_ANCHOR_DIR is set and writable; run python -m calipa.audit_trail.anchor publish."
+
+      - alert: CalipaAnchorsUnpublished
+        expr: calipa_anchors_unpublished > 0
+        for: 30m
+        labels: {severity: page}
+        annotations:
+          summary: "Anchors are recorded but not in the write-once store"
+
+      - alert: CalipaMetricsDown
+        expr: up{job="calipa-api"} == 0
+        for: 5m
+        labels: {severity: page}
+        annotations:
+          summary: "The Calipa API is not answering /metrics"

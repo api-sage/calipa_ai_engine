@@ -1,0 +1,10 @@
+{
+  "version": "1",
+  "status": "inferred, pending confirmation by Finance",
+  "source": "Fitted to get-charges responses on 2026-10-26: USD 100 -> charge 2, VAT 7.5; GBP 10 -> charge 1.4730266 (= USD 2 x USD/GBP 0.7365133), VAT 0.75.",
+  "valid_from": "2026-10-01",
+  "flat_charge": {"amount": "2", "currency": "USD"},
+  "vat_rate": "0.075",
+  "vat_base": "principal",
+  "rounding": "ROUND_HALF_UP"
+}

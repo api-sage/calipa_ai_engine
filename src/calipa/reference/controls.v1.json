@@ -1,0 +1,44 @@
+{
+  "version": "1",
+  "status": "draft, pending confirmation by Finance/Ops",
+  "source": "Derived from the stand-in engine rules and the exception contract 0.1-draft.",
+  "controls": [
+    {
+      "control_id": "C-FEE-LEG",
+      "name": "Transfer charge leg present and correct",
+      "exception_types": ["FEE_LEG_MISSING", "FEE_AMOUNT_MISMATCH"]
+    },
+    {
+      "control_id": "C-VAT-LEG",
+      "name": "VAT leg present and correct",
+      "exception_types": ["VAT_LEG_MISSING", "VAT_AMOUNT_MISMATCH"]
+    },
+    {
+      "control_id": "C-FX",
+      "name": "Conversion uses the day's recorded rate",
+      "exception_types": ["FX_CONVERSION_MISMATCH", "ROUNDING_DIFFERENCE", "RATE_UNAVAILABLE", "RATE_AMBIGUOUS"]
+    },
+    {
+      "control_id": "C-RESIDUAL",
+      "name": "Transient account clears to zero for each transfer",
+      "exception_types": ["TRANSIENT_RESIDUAL"]
+    },
+    {
+      "control_id": "C-STRUCTURE",
+      "name": "Each transfer has the expected legs, directions and currencies",
+      "exception_types": ["STRUCTURE_INCOMPLETE", "ENTRY_DIRECTION_INCONSISTENT", "FEE_VAT_IN_BOTH_CURRENCIES"]
+    },
+    {
+      "control_id": "C-DUPLICATE",
+      "name": "No duplicate entries or duplicate instructions",
+      "exception_types": ["DUPLICATE_ENTRY", "DUPLICATE_INSTRUCTION_CANDIDATE"]
+    }
+  ],
+  "objectives": {
+    "transient_account_reconciliation": ["C-RESIDUAL", "C-STRUCTURE"],
+    "fee_vat_leg_completeness": ["C-FEE-LEG", "C-VAT-LEG", "C-STRUCTURE"],
+    "fx_conversion_check": ["C-FX"],
+    "duplicate_detection": ["C-DUPLICATE"],
+    "transaction_trace": ["C-FEE-LEG", "C-VAT-LEG", "C-FX", "C-RESIDUAL", "C-STRUCTURE", "C-DUPLICATE"]
+  }
+}
