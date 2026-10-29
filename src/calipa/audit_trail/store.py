@@ -97,6 +97,35 @@ def get_run(conn: psycopg.Connection, run_id: UUID) -> Run:
     return _run(row, created=False)
 
 
+def runs_with_state(
+    conn: psycopg.Connection,
+    *,
+    initiated_by: str | None = None,
+    state: str | None = None,
+    newest_first: bool = True,
+    limit: int | None = None,
+) -> list[tuple[Run, str | None]]:
+    """Runs with their current state (None before the first transition), in one query.
+    `state` is a RunState value."""
+    order = "desc" if newest_first else "asc"
+    rows = conn.execute(
+        f"""
+        select {_RUN_COLUMNS}, l.state from runs
+        left join lateral (
+            select state from run_events e
+            where e.run_id = runs.run_id and e.state is not null
+            order by e.seq desc limit 1
+        ) l on true
+        where (%(by)s::text is null or initiated_by = %(by)s)
+          and (%(state)s::text is null or l.state = %(state)s)
+        order by created_at {order}, run_id
+        limit %(limit)s
+        """,  # noqa: S608 - only fixed column names and a fixed sort order are interpolated
+        {"by": initiated_by, "state": state, "limit": limit},
+    ).fetchall()
+    return [(_run(row[:-1], created=False), row[-1]) for row in rows]
+
+
 def _run(row: tuple[Any, ...], *, created: bool) -> Run:
     run_id, idempotency_key, initiated_by, request_text, created_at, parent = row
     return Run(run_id, idempotency_key, initiated_by, request_text, created_at, parent, created)
@@ -200,13 +229,14 @@ def append_event(
     )
 
 
-def list_events(conn: psycopg.Connection, run_id: UUID) -> list[RunEvent]:
+def list_events(conn: psycopg.Connection, run_id: UUID, *, after: int = 0) -> list[RunEvent]:
+    """The run's events in order; with `after`, only those with a later seq."""
     rows = conn.execute(
         """
         select run_id, seq, event_type, state, payload, actor, created_at, prev_hash, row_hash
-        from run_events where run_id = %s order by seq
+        from run_events where run_id = %s and seq > %s order by seq
         """,
-        (run_id,),
+        (run_id, after),
     ).fetchall()
     return [RunEvent(*row) for row in rows]
 
