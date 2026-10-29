@@ -41,7 +41,7 @@ def load_prompt(name: str, version: int, *, directory: Path | None = None) -> Pr
 # The versions in use. The worker, the evals and the tests all load prompts through
 # this table, so an eval always scores what production runs. Older files stay for
 # reproducing earlier runs, whose calls record the version and SHA-256 they used.
-ACTIVE = {"interpreter": 3, "analyst": 4, "report": 3}
+ACTIVE = {"interpreter": 3, "analyst": 5, "report": 4}
 
 
 def active_prompt(name: str) -> Prompt:
