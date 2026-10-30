@@ -1,0 +1,260 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Calipa tokens, from the brand profile (color_profile.pdf).
+
+  Brand: paper neutrals (#FAF9F5 → #C7C3B8), ink #151514 and #6C6963, Calipa green
+  #2D6B50, signal orange #C85A30 (the dot over the i), ochre #B7872D.
+
+  Three layers:
+  1. Raw palette (below, in :root and .dark).
+  2. Calipa roles: what a colour means here. Money moving up or down, a run that
+     needs a person, text Claude wrote, a claim code verified, exception severity.
+  3. shadcn roles, mapped onto the above so stock components inherit the look.
+
+  Rules:
+  - Green is the brand and the one interactive colour. Orange is a signal, used
+    sparingly: the logo dot, the high end of severity. Never on a button.
+  - Gains/losses (up/down) and severity are separate scales. A negative amount is
+    not an alarm; a high-severity exception is.
+*/
+
+@theme inline {
+  /* surfaces and text */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+
+  /* interactive */
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-signal: var(--signal);
+  --color-signal-soft: var(--signal-soft);
+
+  /* meaning */
+  --color-up: var(--up);
+  --color-up-soft: var(--up-soft);
+  --color-down: var(--down);
+  --color-down-soft: var(--down-soft);
+  --color-attention: var(--attention);
+  --color-attention-soft: var(--attention-soft);
+  --color-ai: var(--ai);
+  --color-ai-soft: var(--ai-soft);
+  --color-verified: var(--verified);
+  --color-verified-soft: var(--verified-soft);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+
+  /* type */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), ui-serif, Georgia, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-small: 0.8125rem;
+  --text-small--line-height: 1.25rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.375rem;
+  --text-lead: 1rem;
+  --text-lead--line-height: 1.5rem;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-heading: 1.5rem;
+  --text-heading--line-height: 2rem;
+  --text-display: 2rem;
+  --text-display--line-height: 2.5rem;
+  --text-figure: 2.75rem;
+  --text-figure--line-height: 3rem;
+
+  /* motion */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --animate-pulse-dot: pulse-dot 1.6s var(--ease-in-out-soft) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  /* elevation */
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+
+  /* shadcn roles */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, currentColor 45%, transparent); }
+  50% { box-shadow: 0 0 0 4px color-mix(in oklch, currentColor 0%, transparent); }
+}
+
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* paper */
+  --canvas: #f4f1ea;
+  --surface: #faf9f5;
+  --surface-2: #f4f1ea;
+  --surface-3: #eae7df;
+  --line: #e5e2da;
+  --line-strong: #c7c3b8;
+  --ink: #151514;
+  --ink-muted: #6c6963;
+  --ink-subtle: #8e8a82;
+
+  /* Calipa green */
+  --brand: #2d6b50;
+  --brand-ink: #245840;
+  --brand-soft: #e2ece5;
+
+  /* the dot */
+  --signal: #c85a30;
+  --signal-soft: #f7e6dc;
+
+  --up: #2f7a55;
+  --up-soft: #e3eee6;
+  --down: #a8382c;
+  --down-soft: #f6e3df;
+  --attention: #8f6a1f; /* ochre #B7872D, darkened for text on paper */
+  --attention-soft: #f4ead3;
+  --ai: #66548f;
+  --ai-soft: #ece8f3;
+  --verified: #2c6670;
+  --verified-soft: #e1ecec;
+  --sev-high: #c85a30;
+  --sev-medium: #b7872d;
+  --sev-low: #a8a397;
+
+  --shadow-raised: 0 1px 2px rgb(21 21 20 / 0.05), 0 0 0 1px rgb(21 21 20 / 0.05);
+  --shadow-overlay: 0 14px 36px -10px rgb(21 21 20 / 0.22), 0 0 0 1px rgb(21 21 20 / 0.07);
+
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--surface);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-muted);
+  --accent: var(--surface-3);
+  --accent-foreground: var(--ink);
+  --destructive: var(--down);
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--brand);
+}
+
+/* Dark: the same paper, at night. Warm, never blue-black. */
+.dark {
+  --canvas: #111110;
+  --surface: #181816;
+  --surface-2: #201f1d;
+  --surface-3: #292825;
+  --line: rgb(244 241 234 / 0.08);
+  --line-strong: rgb(244 241 234 / 0.15);
+  --ink: #f4f1ea;
+  --ink-muted: #aaa69c;
+  --ink-subtle: #7b776f;
+
+  --brand: #5aa480;
+  --brand-ink: #82c2a1;
+  --brand-soft: rgb(90 164 128 / 0.16);
+
+  --signal: #e07a4f;
+  --signal-soft: rgb(224 122 79 / 0.16);
+
+  --up: #73bf93;
+  --up-soft: rgb(115 191 147 / 0.14);
+  --down: #e8786a;
+  --down-soft: rgb(232 120 106 / 0.15);
+  --attention: #dcae52;
+  --attention-soft: rgb(220 174 82 / 0.15);
+  --ai: #ad9bdc;
+  --ai-soft: rgb(173 155 220 / 0.15);
+  --verified: #78b8c2;
+  --verified-soft: rgb(120 184 194 / 0.14);
+  --sev-high: #e07a4f;
+  --sev-medium: #d3a447;
+  --sev-low: #6f6b63;
+
+  --shadow-raised: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(244 241 234 / 0.05);
+  --shadow-overlay: 0 18px 44px -10px rgb(0 0 0 / 0.65), 0 0 0 1px rgb(244 241 234 / 0.09);
+
+  --primary-foreground: #151514;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground font-sans text-body;
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--brand) 22%, transparent);
+  }
+  /* Headings and display set in Newsreader; optical size follows the text size. */
+  .font-serif {
+    font-optical-sizing: auto;
+    letter-spacing: -0.012em;
+  }
+  /* Every figure lines up: amounts, counts, times, ids. */
+  .figures {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

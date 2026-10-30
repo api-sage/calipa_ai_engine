@@ -48,7 +48,41 @@ def test_identity(api: TestClient) -> None:
     assert api.get("/me").status_code == 401
     assert api.get("/me", headers=as_("stranger@bank")).status_code == 403
     me = api.get("/me", headers=as_("lead@bank")).json()
-    assert me == {"user": "lead@bank", "can_initiate": True, "can_review": True}
+    assert me == {
+        "user": "lead@bank",
+        "can_initiate": True,
+        "can_review": True,
+        "account_roles": ["FEE_INCOME", "TRANSIENT", "VAT"],
+        "objectives": [
+            "duplicate_detection",
+            "fee_vat_leg_completeness",
+            "fx_conversion_check",
+            "transaction_trace",
+            "transient_account_reconciliation",
+        ],
+        "max_period_days": 92,
+    }
+    fees = api.get("/me", headers=as_("fees@bank")).json()
+    assert (fees["account_roles"], fees["objectives"]) == (
+        ["FEE_INCOME", "VAT"],
+        ["fee_vat_leg_completeness"],
+    )
+
+
+def test_reference_lists_what_calipa_checks(api: TestClient) -> None:
+    assert api.get("/reference").status_code == 401
+    ref = api.get("/reference", headers=as_("reviewer@bank")).json()
+    ids = {c["control_id"] for c in ref["controls"]}
+    assert "C-FEE-LEG" in ids
+    assert all(set(cs) <= ids for cs in ref["objectives"].values())
+    fee_leg = next(c for c in ref["controls"] if c["control_id"] == "C-FEE-LEG")
+    assert "fee_vat_leg_completeness" in fee_leg["objectives"]
+    assert {a["role"] for a in ref["accounts"]} == {"TRANSIENT", "FEE_INCOME", "VAT"}
+    assert ref["tariff"] == {
+        "flat_charge": {"amount": "2", "currency": "USD"},
+        "vat_rate": "0.075",
+        "rounding": "ROUND_HALF_UP",
+    }
 
 
 def test_starting_a_run_is_idempotent_and_entitled(api: TestClient) -> None:
@@ -103,6 +137,18 @@ def test_report_and_review_over_http(api: TestClient, conn: psycopg.Connection) 
     report = api.get(f"/runs/{run_id}/report", headers=as_("reviewer@bank")).json()
     assert report["findings"][0]["source"] == "ai"
     assert "followed the first by 18 seconds" in report["findings"][0]["text"]
+    detail = report["detail"]
+    in_scope = sum(len(f["exceptions"]) for f in detail["findings"])
+    assert detail["reconciliation"]["exceptions_in_scope"] == in_scope > 0
+    g1 = detail["findings"][0]
+    assert (g1["key"], g1["narrative"]["text"]) == ("G1", report["findings"][0]["text"])
+    assert g1["exceptions"] and g1["hypotheses"] and g1["claims"]
+    supporting = {c for h in g1["hypotheses"] for c in h["supporting_claims"]}
+    assert supporting <= {c["claim_id"] for c in g1["claims"]}
+    for e in g1["exceptions"]:
+        for money in (e["expected"], e["actual"], e["difference"]):
+            assert money is None or isinstance(money["amount"], str)
+    assert detail["ai_calls"] and detail["limitations"]
     md = api.get(f"/runs/{run_id}/report.md", headers=as_("reviewer@bank"))
     assert md.headers["content-type"].startswith("text/markdown")
     assert md.headers["x-report-sha256"] == artifact.report_sha256

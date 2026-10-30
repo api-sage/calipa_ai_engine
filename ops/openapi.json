@@ -1,6 +1,138 @@
 {
   "components": {
     "schemas": {
+      "AICallView": {
+        "additionalProperties": false,
+        "properties": {
+          "model_requested": {
+            "title": "Model Requested",
+            "type": "string"
+          },
+          "model_served": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Served"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "reused": {
+            "title": "Reused",
+            "type": "boolean"
+          },
+          "step": {
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "prompt",
+          "model_requested",
+          "model_served",
+          "outcome",
+          "reused"
+        ],
+        "title": "AICallView",
+        "type": "object"
+      },
+      "AccountLabel": {
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "account"
+        ],
+        "title": "AccountLabel",
+        "type": "object"
+      },
+      "AccountView": {
+        "additionalProperties": false,
+        "properties": {
+          "account_number": {
+            "title": "Account Number",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "account_number",
+          "role",
+          "description"
+        ],
+        "title": "AccountView",
+        "type": "object"
+      },
+      "ClaimView": {
+        "additionalProperties": false,
+        "properties": {
+          "based_on": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Based On",
+            "type": "array"
+          },
+          "claim_id": {
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "observation",
+              "inference"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "kind",
+          "text",
+          "based_on"
+        ],
+        "title": "ClaimView",
+        "type": "object"
+      },
       "ClarificationAnswer": {
         "additionalProperties": false,
         "properties": {
@@ -15,6 +147,75 @@
           "answer"
         ],
         "title": "ClarificationAnswer",
+        "type": "object"
+      },
+      "ControlTotalView": {
+        "additionalProperties": false,
+        "properties": {
+          "account_role": {
+            "title": "Account Role",
+            "type": "string"
+          },
+          "credits_to_transient": {
+            "title": "Credits To Transient",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "debits_from_transient": {
+            "title": "Debits From Transient",
+            "type": "string"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "account_role",
+          "currency",
+          "credits_to_transient",
+          "debits_from_transient",
+          "entries"
+        ],
+        "title": "ControlTotalView",
+        "type": "object"
+      },
+      "ControlView": {
+        "additionalProperties": false,
+        "properties": {
+          "control_id": {
+            "title": "Control Id",
+            "type": "string"
+          },
+          "exception_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Exception Types",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "objectives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Objectives",
+            "type": "array"
+          }
+        },
+        "required": [
+          "control_id",
+          "name",
+          "exception_types",
+          "objectives"
+        ],
+        "title": "ControlView",
         "type": "object"
       },
       "CreateRun": {
@@ -39,6 +240,44 @@
           "idempotency_key"
         ],
         "title": "CreateRun",
+        "type": "object"
+      },
+      "DataView": {
+        "additionalProperties": false,
+        "properties": {
+          "entries_in_period": {
+            "title": "Entries In Period",
+            "type": "integer"
+          },
+          "entries_in_scope": {
+            "title": "Entries In Scope",
+            "type": "integer"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "partial"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "snapshot_sha256",
+          "entries_in_period",
+          "entries_in_scope",
+          "pages"
+        ],
+        "title": "DataView",
         "type": "object"
       },
       "EventView": {
@@ -111,6 +350,197 @@
         "title": "EventsView",
         "type": "object"
       },
+      "ExceptionView": {
+        "additionalProperties": false,
+        "properties": {
+          "actual": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exception_id": {
+            "title": "Exception Id",
+            "type": "string"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MoneyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "transfer_id": {
+            "title": "Transfer Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exception_id",
+          "label",
+          "severity",
+          "rule_id",
+          "transfer_id",
+          "expected",
+          "actual",
+          "difference"
+        ],
+        "title": "ExceptionView",
+        "type": "object"
+      },
+      "FindingDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountLabel"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimView"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "data_limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Data Limitations",
+            "type": "array"
+          },
+          "dropped_hypotheses": {
+            "title": "Dropped Hypotheses",
+            "type": "integer"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/ExceptionView"
+            },
+            "title": "Exceptions",
+            "type": "array"
+          },
+          "hypotheses": {
+            "items": {
+              "$ref": "#/components/schemas/HypothesisView"
+            },
+            "title": "Hypotheses",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "narrative": {
+            "$ref": "#/components/schemas/SectionView"
+          },
+          "next_steps": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Next Steps",
+            "type": "array"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "reused_from_run": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reused From Run"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "analysed",
+              "analysis_unavailable",
+              "not_analysed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "uncovered_exceptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Uncovered Exceptions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "severity",
+          "status",
+          "reason",
+          "narrative",
+          "exceptions",
+          "hypotheses",
+          "claims",
+          "next_steps",
+          "data_limitations",
+          "dropped_hypotheses",
+          "uncovered_exceptions",
+          "reused_from_run",
+          "accounts"
+        ],
+        "title": "FindingDetail",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -124,9 +554,87 @@
         "title": "HTTPValidationError",
         "type": "object"
       },
+      "HypothesisView": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "contradicting_claims": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Contradicting Claims",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "supporting_claims": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Supporting Claims",
+            "type": "array"
+          },
+          "would_confirm": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Would Confirm",
+            "type": "array"
+          },
+          "would_refute": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Would Refute",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rank",
+          "category",
+          "label",
+          "confidence",
+          "summary",
+          "supporting_claims",
+          "contradicting_claims",
+          "would_confirm",
+          "would_refute"
+        ],
+        "title": "HypothesisView",
+        "type": "object"
+      },
       "Me": {
         "additionalProperties": false,
         "properties": {
+          "account_roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Account Roles",
+            "type": "array"
+          },
           "can_initiate": {
             "title": "Can Initiate",
             "type": "boolean"
@@ -134,6 +642,17 @@
           "can_review": {
             "title": "Can Review",
             "type": "boolean"
+          },
+          "max_period_days": {
+            "title": "Max Period Days",
+            "type": "integer"
+          },
+          "objectives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Objectives",
+            "type": "array"
           },
           "user": {
             "title": "User",
@@ -143,9 +662,31 @@
         "required": [
           "user",
           "can_initiate",
-          "can_review"
+          "can_review",
+          "account_roles",
+          "objectives",
+          "max_period_days"
         ],
         "title": "Me",
+        "type": "object"
+      },
+      "MoneyView": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "currency"
+        ],
+        "title": "MoneyView",
         "type": "object"
       },
       "PatternView": {
@@ -168,6 +709,158 @@
           "text"
         ],
         "title": "PatternView",
+        "type": "object"
+      },
+      "ReconciliationView": {
+        "additionalProperties": false,
+        "properties": {
+          "control_totals": {
+            "items": {
+              "$ref": "#/components/schemas/ControlTotalView"
+            },
+            "title": "Control Totals",
+            "type": "array"
+          },
+          "engine": {
+            "title": "Engine",
+            "type": "string"
+          },
+          "exceptions_in_scope": {
+            "title": "Exceptions In Scope",
+            "type": "integer"
+          },
+          "exceptions_outside_scope": {
+            "title": "Exceptions Outside Scope",
+            "type": "integer"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleCount"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "transfers_checked": {
+            "title": "Transfers Checked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine",
+          "snapshot_sha256",
+          "transfers_checked",
+          "exceptions_in_scope",
+          "exceptions_outside_scope",
+          "rules",
+          "control_totals"
+        ],
+        "title": "ReconciliationView",
+        "type": "object"
+      },
+      "ReferenceView": {
+        "additionalProperties": false,
+        "description": "What Calipa checks against: the control catalogue, the accounts and the tariff.",
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountView"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "controls": {
+            "items": {
+              "$ref": "#/components/schemas/ControlView"
+            },
+            "title": "Controls",
+            "type": "array"
+          },
+          "objectives": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Objectives",
+            "type": "object"
+          },
+          "tariff": {
+            "$ref": "#/components/schemas/TariffView"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Versions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "controls",
+          "objectives",
+          "accounts",
+          "tariff",
+          "versions"
+        ],
+        "title": "ReferenceView",
+        "type": "object"
+      },
+      "ReportDetail": {
+        "additionalProperties": false,
+        "description": "The data the report was built from, for the UI to lay out. Same inputs as the\nMarkdown, read back from the run's artifacts and checked against its manifest.",
+        "properties": {
+          "ai_calls": {
+            "items": {
+              "$ref": "#/components/schemas/AICallView"
+            },
+            "title": "Ai Calls",
+            "type": "array"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/FindingDetail"
+            },
+            "title": "Findings",
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/ReconciliationView"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ScopeView"
+          }
+        },
+        "required": [
+          "scope",
+          "data",
+          "reconciliation",
+          "findings",
+          "limitations",
+          "ai_calls"
+        ],
+        "title": "ReportDetail",
         "type": "object"
       },
       "ReportSummary": {
@@ -221,6 +914,9 @@
       "ReportView": {
         "additionalProperties": false,
         "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ReportDetail"
+          },
           "executive_summary": {
             "$ref": "#/components/schemas/SectionView"
           },
@@ -251,6 +947,7 @@
           "executive_summary",
           "findings",
           "patterns",
+          "detail",
           "markdown"
         ],
         "title": "ReportView",
@@ -354,6 +1051,30 @@
           "created_at"
         ],
         "title": "ReviewView",
+        "type": "object"
+      },
+      "RuleCount": {
+        "additionalProperties": false,
+        "properties": {
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "rule_id": {
+            "title": "Rule Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rule_id",
+          "passed",
+          "failed"
+        ],
+        "title": "RuleCount",
         "type": "object"
       },
       "RunListItem": {
@@ -558,6 +1279,79 @@
         "title": "RunView",
         "type": "object"
       },
+      "ScopeView": {
+        "additionalProperties": false,
+        "properties": {
+          "approved_by": {
+            "title": "Approved By",
+            "type": "string"
+          },
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "control_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Control Ids",
+            "type": "array"
+          },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "objective": {
+            "title": "Objective",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_rule": {
+            "title": "Period Rule",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          },
+          "transaction_references": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Transaction References",
+            "type": "array"
+          }
+        },
+        "required": [
+          "objective",
+          "period_start",
+          "period_end",
+          "timezone",
+          "period_rule",
+          "currencies",
+          "transaction_references",
+          "control_ids",
+          "assumptions",
+          "approved_by"
+        ],
+        "title": "ScopeView",
+        "type": "object"
+      },
       "SectionView": {
         "additionalProperties": false,
         "properties": {
@@ -584,6 +1378,29 @@
           "text"
         ],
         "title": "SectionView",
+        "type": "object"
+      },
+      "TariffView": {
+        "additionalProperties": false,
+        "properties": {
+          "flat_charge": {
+            "$ref": "#/components/schemas/MoneyView"
+          },
+          "rounding": {
+            "title": "Rounding",
+            "type": "string"
+          },
+          "vat_rate": {
+            "title": "Vat Rate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flat_charge",
+          "vat_rate",
+          "rounding"
+        ],
+        "title": "TariffView",
         "type": "object"
       },
       "ValidationError": {
@@ -730,6 +1547,52 @@
           }
         },
         "summary": "Me"
+      }
+    },
+    "/reference": {
+      "get": {
+        "operationId": "reference_reference_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Calipa-User",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Calipa-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reference"
       }
     },
     "/runs": {

@@ -11,28 +11,35 @@ not see answers 404, the same as a run that does not exist.
 
 # No `from __future__ import annotations` here: FastAPI reads the endpoint signatures,
 # and the dependency aliases (Conn, User) are local to create_app.
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
 
 import psycopg
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from psycopg_pool import ConnectionPool
 
+from calipa.api.report_detail import report_detail
 from calipa.api.schemas import (
+    AccountView,
     ClarificationAnswer,
+    ControlView,
     CreateRun,
     EventsView,
     EventView,
     Me,
+    MoneyView,
     PatternView,
+    ReferenceView,
     ReportSummary,
     ReportView,
     ReviewRequest,
@@ -40,6 +47,7 @@ from calipa.api.schemas import (
     RunListItem,
     RunView,
     SectionView,
+    TariffView,
     VersionView,
 )
 from calipa.audit_trail.artifacts import require_artifact
@@ -51,6 +59,7 @@ from calipa.audit_trail.store import (
     get_run,
     list_events,
     now_utc,
+    runs_with_state,
     verify_chain,
 )
 from calipa.config import Settings, get_settings
@@ -65,7 +74,16 @@ from calipa.orchestrator.lifecycle import (
     current_state,
     start,
 )
-from calipa.reference import Entitlements, load_entitlements
+from calipa.reference import (
+    AccountCatalog,
+    ControlCatalog,
+    Entitlements,
+    Tariff,
+    load_account_catalog,
+    load_control_catalog,
+    load_entitlements,
+    load_tariff,
+)
 from calipa.reporter.step import REPORT, ReportArtifact, markdown_of
 from calipa.review.service import (
     Conflict,
@@ -93,6 +111,9 @@ class ApiDeps:
     clock: Callable[[], datetime] = now_utc
     pool: ConnectionPool | None = None  # opened and closed with the app
     stall_after: timedelta = timedelta(minutes=15)  # for calipa_runs_stalled
+    controls: ControlCatalog = field(default_factory=load_control_catalog)
+    accounts: AccountCatalog = field(default_factory=load_account_catalog)
+    tariff: Tariff = field(default_factory=load_tariff)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ApiDeps":
@@ -182,7 +203,51 @@ def create_app(deps: ApiDeps) -> FastAPI:
     @app.get("/me")
     def me(user: User) -> Me:
         grant = deps.entitlements.grant_for(user)
-        return Me(user=user, can_initiate=grant.can_initiate, can_review=grant.can_review)
+        return Me(
+            user=user,
+            can_initiate=grant.can_initiate,
+            can_review=grant.can_review,
+            account_roles=sorted(grant.account_roles),
+            objectives=sorted(grant.objectives),
+            max_period_days=grant.max_period_days,
+        )
+
+    @app.get("/reference")
+    def reference(user: User) -> ReferenceView:
+        catalog, tariff = deps.controls, deps.tariff
+        return ReferenceView(
+            controls=[
+                ControlView(
+                    control_id=c.control_id,
+                    name=c.name,
+                    exception_types=list(c.exception_types),
+                    objectives=sorted(
+                        o for o, ids in catalog.objectives.items() if c.control_id in ids
+                    ),
+                )
+                for c in catalog.controls.values()
+            ],
+            objectives={o.value: list(ids) for o, ids in catalog.objectives.items()},
+            accounts=[
+                AccountView(
+                    account_number=n, role=r.value, description=deps.accounts.descriptions[r]
+                )
+                for n, r in deps.accounts.roles.items()
+            ],
+            tariff=TariffView(
+                flat_charge=MoneyView(
+                    amount=str(tariff.flat_charge.amount),
+                    currency=tariff.flat_charge.currency.value,
+                ),
+                vat_rate=str(tariff.vat_rate),
+                rounding=tariff.rounding,
+            ),
+            versions={
+                "controls": catalog.version,
+                "accounts": deps.accounts.version,
+                "tariff": tariff.version,
+            },
+        )
 
     @app.post("/runs", status_code=202)
     def create(body: CreateRun, conn: Conn, user: User) -> RunView:
@@ -212,42 +277,30 @@ def create_app(deps: ApiDeps) -> FastAPI:
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
     ) -> list[RunListItem]:
         if view == "mine":
-            rows = conn.execute(
-                """
-                select run_id from runs where initiated_by = %s
-                order by created_at desc, run_id limit %s
-                """,
-                (user, limit),
-            ).fetchall()
-            runs = [get_run(conn, r[0]) for r in rows]
+            found = runs_with_state(conn, initiated_by=user, limit=limit)
         else:
-            rows = conn.execute(
-                """
-                with latest as (
-                    select distinct on (run_id) run_id, state from run_events
-                    where state is not null order by run_id, seq desc
-                )
-                select r.run_id from runs r join latest l using (run_id)
-                where l.state = %s order by r.created_at, r.run_id
-                """,
-                (RunState.PENDING_REVIEW.value,),
-            ).fetchall()
-            runs = [
-                run
-                for run in (get_run(conn, r[0]) for r in rows)
-                if user not in scope_authors(conn, run)
-                and can_view(conn, run, user, deps.entitlements)
-            ][:limit]
+            # Who may review a run depends on its scope and its authors, so the queue
+            # is filtered here, oldest first, stopping once `limit` runs qualify.
+            found = []
+            for run, state in runs_with_state(
+                conn, state=RunState.PENDING_REVIEW.value, newest_first=False
+            ):
+                if user not in scope_authors(conn, run) and can_view(
+                    conn, run, user, deps.entitlements
+                ):
+                    found.append((run, state))
+                    if len(found) == limit:
+                        break
         return [
             RunListItem(
                 run_id=r.run_id,
-                state=current_state(conn, r.run_id),
+                state=RunState(state) if state else None,
                 initiated_by=r.initiated_by,
                 request_text=r.request_text,
                 created_at=r.created_at,
                 parent_run_id=r.parent_run_id,
             )
-            for r in runs
+            for r, state in found
         ]
 
     @app.get("/runs/{run_id}")
@@ -303,6 +356,7 @@ def create_app(deps: ApiDeps) -> FastAPI:
             ),
             findings=[SectionView(ref=s.ref, source=s.source, text=s.text) for s in n.findings],
             patterns=[PatternView(finding_keys=p.finding_keys, text=p.text) for p in n.patterns],
+            detail=report_detail(conn, run_id, artifact, deps.controls),
             markdown=markdown_of(conn, artifact),
         )
 
@@ -439,15 +493,19 @@ def _event(e: RunEvent) -> EventView:
     )
 
 
-def _sse(deps: ApiDeps, run_id: UUID, *, after: int) -> Iterator[str]:
-    """Poll the run's events and send each new one. Each poll borrows a connection
-    and returns it before waiting, so an open stream does not hold one for minutes."""
+async def _sse(deps: ApiDeps, run_id: UUID, *, after: int) -> AsyncIterator[str]:
+    """Poll the run's new events and send each one. The database read runs on a worker
+    thread and returns its connection before the wait, and the wait itself holds no
+    thread, so an open stream ties up neither a connection nor a thread."""
+
+    def poll(seen: int) -> tuple[list[RunEvent], RunState | None]:
+        with deps.connect() as conn:
+            return list_events(conn, run_id, after=seen), current_state(conn, run_id)
+
     deadline = time.monotonic() + deps.stream_max_seconds
     seen = after
     while time.monotonic() < deadline:
-        with deps.connect() as conn:
-            new = [e for e in list_events(conn, run_id) if e.seq > seen]
-            state = current_state(conn, run_id)
+        new, state = await run_in_threadpool(poll, seen)
         for e in new:
             data = _event(e).model_dump_json()
             yield f"id: {e.seq}\nevent: {e.event_type}\ndata: {data}\n\n"
@@ -457,4 +515,4 @@ def _sse(deps: ApiDeps, run_id: UUID, *, after: int) -> Iterator[str]:
             return
         if not new:
             yield ": keep-alive\n\n"
-        time.sleep(deps.stream_poll_seconds)
+        await asyncio.sleep(deps.stream_poll_seconds)
