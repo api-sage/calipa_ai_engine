@@ -446,7 +446,7 @@ def _finding(key: str, finding: Finding, section: Section) -> list[str]:
         )
         lines += ["Evidence the analyst relied on (AI-written claims checked by V2):", ""]
         lines += [
-            f"- {md(_entry_ids(analysis.rendered[c.claim_id], items))}" for c in analysis.claims
+            f"- {md(name_entries(analysis.rendered[c.claim_id], items))}" for c in analysis.claims
         ]
         lines.append("")
         if analysis.next_steps:
@@ -473,7 +473,7 @@ def _finding(key: str, finding: Finding, section: Section) -> list[str]:
     return lines
 
 
-def _entry_ids(text: str, items: dict[str, dict[str, str]]) -> str:
+def name_entries(text: str, items: dict[str, dict[str, str]]) -> str:
     """Evidence ids mean nothing outside the bundle: name the ledger entry instead."""
 
     def entry(match: re.Match[str]) -> str:

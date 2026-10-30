@@ -16,7 +16,7 @@ import json
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from contextlib import AbstractContextManager, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 from uuid import UUID
@@ -28,13 +28,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 from psycopg_pool import ConnectionPool
 
+from calipa.api.report_detail import report_detail
 from calipa.api.schemas import (
+    AccountView,
     ClarificationAnswer,
+    ControlView,
     CreateRun,
     EventsView,
     EventView,
     Me,
+    MoneyView,
     PatternView,
+    ReferenceView,
     ReportSummary,
     ReportView,
     ReviewRequest,
@@ -42,6 +47,7 @@ from calipa.api.schemas import (
     RunListItem,
     RunView,
     SectionView,
+    TariffView,
     VersionView,
 )
 from calipa.audit_trail.artifacts import require_artifact
@@ -68,7 +74,16 @@ from calipa.orchestrator.lifecycle import (
     current_state,
     start,
 )
-from calipa.reference import Entitlements, load_entitlements
+from calipa.reference import (
+    AccountCatalog,
+    ControlCatalog,
+    Entitlements,
+    Tariff,
+    load_account_catalog,
+    load_control_catalog,
+    load_entitlements,
+    load_tariff,
+)
 from calipa.reporter.step import REPORT, ReportArtifact, markdown_of
 from calipa.review.service import (
     Conflict,
@@ -96,6 +111,9 @@ class ApiDeps:
     clock: Callable[[], datetime] = now_utc
     pool: ConnectionPool | None = None  # opened and closed with the app
     stall_after: timedelta = timedelta(minutes=15)  # for calipa_runs_stalled
+    controls: ControlCatalog = field(default_factory=load_control_catalog)
+    accounts: AccountCatalog = field(default_factory=load_account_catalog)
+    tariff: Tariff = field(default_factory=load_tariff)
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ApiDeps":
@@ -185,7 +203,51 @@ def create_app(deps: ApiDeps) -> FastAPI:
     @app.get("/me")
     def me(user: User) -> Me:
         grant = deps.entitlements.grant_for(user)
-        return Me(user=user, can_initiate=grant.can_initiate, can_review=grant.can_review)
+        return Me(
+            user=user,
+            can_initiate=grant.can_initiate,
+            can_review=grant.can_review,
+            account_roles=sorted(grant.account_roles),
+            objectives=sorted(grant.objectives),
+            max_period_days=grant.max_period_days,
+        )
+
+    @app.get("/reference")
+    def reference(user: User) -> ReferenceView:
+        catalog, tariff = deps.controls, deps.tariff
+        return ReferenceView(
+            controls=[
+                ControlView(
+                    control_id=c.control_id,
+                    name=c.name,
+                    exception_types=list(c.exception_types),
+                    objectives=sorted(
+                        o for o, ids in catalog.objectives.items() if c.control_id in ids
+                    ),
+                )
+                for c in catalog.controls.values()
+            ],
+            objectives={o.value: list(ids) for o, ids in catalog.objectives.items()},
+            accounts=[
+                AccountView(
+                    account_number=n, role=r.value, description=deps.accounts.descriptions[r]
+                )
+                for n, r in deps.accounts.roles.items()
+            ],
+            tariff=TariffView(
+                flat_charge=MoneyView(
+                    amount=str(tariff.flat_charge.amount),
+                    currency=tariff.flat_charge.currency.value,
+                ),
+                vat_rate=str(tariff.vat_rate),
+                rounding=tariff.rounding,
+            ),
+            versions={
+                "controls": catalog.version,
+                "accounts": deps.accounts.version,
+                "tariff": tariff.version,
+            },
+        )
 
     @app.post("/runs", status_code=202)
     def create(body: CreateRun, conn: Conn, user: User) -> RunView:
@@ -294,6 +356,7 @@ def create_app(deps: ApiDeps) -> FastAPI:
             ),
             findings=[SectionView(ref=s.ref, source=s.source, text=s.text) for s in n.findings],
             patterns=[PatternView(finding_keys=p.finding_keys, text=p.text) for p in n.patterns],
+            detail=report_detail(conn, run_id, artifact, deps.controls),
             markdown=markdown_of(conn, artifact),
         )
 
