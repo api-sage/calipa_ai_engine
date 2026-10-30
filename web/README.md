@@ -49,7 +49,20 @@ On a slow network Node gives up on connections too early. Set
 
 ```bash
 pnpm typecheck && pnpm lint
+pnpm e2e        # browser tests; needs local Postgres (CALIPA_TEST_ADMIN_URL to point elsewhere)
 ```
 
 `next build` writes to `.next`, which the dev server also uses; stop `pnpm dev` first,
-or build from a copy.
+or build with `NEXT_DIST_DIR=<another folder>`.
+
+### Browser tests
+
+`e2e/` drives the built app in Chromium against the real API. `playwright.config.ts`
+recreates a `calipa_e2e` database, seeds it with `tests/e2e_seed.py` (reports made with
+the unit tests' scripted model, and a run waiting on a question), and starts the API on
+:8766 and the app on :3100, built into `.next-e2e` so it runs beside `pnpm dev`. No
+worker runs, so nothing calls a model or the bank. The tests check what the browser
+caused through the API: one approval however often the button is pressed, nothing
+recorded on cancel, reasons required, flags acknowledged, the author kept from review.
+CI runs them on every pull request; on failure the trace is uploaded as an artifact
+(`pnpm exec playwright show-trace <trace.zip>`).
