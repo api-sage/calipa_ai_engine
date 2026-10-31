@@ -221,3 +221,6 @@ __marimo__/
 
 # Eval run outputs (contain model responses)
 evals/*/results/
+
+# Playwright MCP screenshots
+.playwright-mcp/

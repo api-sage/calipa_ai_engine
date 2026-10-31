@@ -149,6 +149,13 @@ def test_report_and_review_over_http(api: TestClient, conn: psycopg.Connection) 
         for money in (e["expected"], e["actual"], e["difference"]):
             assert money is None or isinstance(money["amount"], str)
     assert detail["ai_calls"] and detail["limitations"]
+    days, scope = detail["days"], detail["scope"]
+    assert (days[0]["day"], days[-1]["day"]) == (scope["period_start"], scope["period_end"])
+    assert sum(d["entries"] for d in days) == detail["data"]["entries_in_scope"]
+    assert sum(d["exceptions"] for d in days) == in_scope
+    for t in detail["reconciliation"]["control_totals"]:
+        moved = [m for d in days for m in d["money"] if m["currency"] == t["currency"]]
+        assert moved, t
     md = api.get(f"/runs/{run_id}/report.md", headers=as_("reviewer@bank"))
     assert md.headers["content-type"].startswith("text/markdown")
     assert md.headers["x-report-sha256"] == artifact.report_sha256

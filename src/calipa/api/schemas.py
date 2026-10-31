@@ -167,6 +167,21 @@ class ReconciliationView(_Model):
     control_totals: list[ControlTotalView]
 
 
+class DayMoneyView(_Model):
+    currency: str
+    into_transient: str
+    out_of_transient: str
+
+
+class DayView(_Model):
+    """One day of the approved period, in the bank's timezone."""
+
+    day: date
+    entries: int  # in scope
+    exceptions: int  # in scope, by the day their transfer started
+    money: list[DayMoneyView]  # per currency; empty on a day with no transient movement
+
+
 class ExceptionView(_Model):
     exception_id: str
     label: str
@@ -235,6 +250,7 @@ class ReportDetail(_Model):
     scope: ScopeView
     data: DataView | None
     reconciliation: ReconciliationView
+    days: list[DayView]  # every day of the period; empty without a snapshot
     findings: list[FindingDetail]
     limitations: list[str]
     ai_calls: list[AICallView]

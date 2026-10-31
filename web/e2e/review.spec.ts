@@ -9,6 +9,27 @@ test.describe("second-person review", () => {
     }
   });
 
+  test("the report charts the period and the transient account, day by day", async ({ page, signIn, api }) => {
+    await signIn("reviewer@bank");
+    await page.goto(`/runs/${seeded.pending}`);
+    const flow = page.getByRole("img", { name: /into and out of the transient account over 1 day;/ });
+    await expect(flow).toBeVisible();
+    const report = await (await page.request.get(`http://localhost:8766/runs/${seeded.pending}/report`, { headers: { "X-Calipa-User": "reviewer@bank" } })).json();
+    const entries = report.detail.days.reduce((a: number, d: { entries: number }) => a + d.entries, 0);
+    expect(entries).toBe(report.detail.data.entries_in_scope);
+
+    const exceptions = report.detail.findings.reduce((a: number, f: { exceptions: unknown[] }) => a + f.exceptions.length, 0);
+    const findings = report.detail.findings.length;
+    expect(exceptions).toBeGreaterThan(0);
+    await expect(page.getByText(new RegExp(`^${exceptions} exceptions? in ${findings} findings?$`))).toBeVisible();
+    await page.getByRole("radio", { name: "Type" }).click();
+    await expect(page.getByRole("list", { name: "Exceptions by type" })).toBeVisible();
+
+    await page.getByRole("tab", { name: "Details" }).click();
+    await expect(page.getByRole("img", { name: new RegExp(`^1 day, ${entries} entr(y|ies),`) })).toBeVisible();
+    expect((await api.run(seeded.pending)).state).toBe("PENDING_REVIEW");
+  });
+
   test("the author cannot review their own report", async ({ page, signIn }) => {
     await signIn("auditor@bank");
     await page.goto(`/runs/${seeded.pending}`);

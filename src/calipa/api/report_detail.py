@@ -7,7 +7,11 @@ never show data the reviewed report was not built from.
 
 from __future__ import annotations
 
+from collections import defaultdict
+from datetime import date, timedelta
+from decimal import Decimal
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 import psycopg
 
@@ -18,6 +22,8 @@ from calipa.api.schemas import (
     ClaimView,
     ControlTotalView,
     DataView,
+    DayMoneyView,
+    DayView,
     ExceptionView,
     FindingDetail,
     HypothesisView,
@@ -28,8 +34,12 @@ from calipa.api.schemas import (
     ScopeView,
     SectionView,
 )
+from calipa.audit_trail.artifacts import require_artifact
+from calipa.engine.contract import EngineException, ReconciliationRequest
 from calipa.errors import IntegrityViolation
-from calipa.reference import ControlCatalog
+from calipa.gateway.fcy import GLEntry
+from calipa.orchestrator.steps import ENGINE_REQUEST, in_scope_exceptions
+from calipa.reference import AccountRole, ControlCatalog
 from calipa.reporter.facts import CATEGORY_LABELS, EXCEPTION_LABELS
 from calipa.reporter.render import NEXT_STEP_LABELS, Section, limitations, name_entries
 from calipa.reporter.step import ReportArtifact, disclosures, load_inputs, reused_call_ids
@@ -90,6 +100,15 @@ def report_detail(
                 for t in result.control_totals
             ],
         ),
+        days=[]
+        if snapshot is None
+        else _days(
+            snapshot.entries,
+            in_scope_exceptions(result.exceptions, scope, controls),
+            require_artifact(conn, run_id, ENGINE_REQUEST, ReconciliationRequest)[1],
+            scope.period_start,
+            scope.period_end,
+        ),
         findings=[
             _finding(key, finding, section)
             for (key, finding), section in zip(
@@ -109,6 +128,49 @@ def report_detail(
             for c in disclosures(conn, run_id, reused=reused_call_ids(inputs))
         ],
     )
+
+
+def _days(
+    entries: list[GLEntry],
+    exceptions: list[EngineException],
+    request: ReconciliationRequest,
+    start: date,
+    end: date,
+) -> list[DayView]:
+    """Each day of the period: entries, exceptions, and money into and out of the
+    transient account per currency, the same direction rule as the control totals."""
+    tz = ZoneInfo(request.bank_timezone)
+    transient = next(
+        (n for n, r in request.account_roles.items() if r == AccountRole.TRANSIENT), None
+    )
+    entries_on: dict[date, int] = defaultdict(int)
+    started: dict[UUID, date] = {}
+    money: dict[date, dict[str, list[Decimal]]] = defaultdict(dict)
+    for e in entries:
+        day = e.created_at.astimezone(tz).date()
+        entries_on[day] += 1
+        started[e.transfer_id] = min(day, started.get(e.transfer_id, day))
+        if transient not in (e.debited_account, e.credited_account):
+            continue
+        into_out = money[day].setdefault(e.currency.value, [Decimal(0), Decimal(0)])
+        into_out[0 if e.credited_account == transient else 1] += e.amount
+    exceptions_on: dict[date, int] = defaultdict(int)
+    for x in exceptions:
+        if x.transfer_id in started:
+            exceptions_on[started[x.transfer_id]] += 1
+    days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
+    return [
+        DayView(
+            day=d,
+            entries=entries_on[d],
+            exceptions=exceptions_on[d],
+            money=[
+                DayMoneyView(currency=c, into_transient=str(i), out_of_transient=str(o))
+                for c, (i, o) in sorted(money[d].items())
+            ],
+        )
+        for d in days
+    ]
 
 
 def _money(fields: dict[str, str], name: str) -> MoneyView | None:

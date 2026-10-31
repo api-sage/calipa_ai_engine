@@ -56,3 +56,28 @@ export function formatCompact(value: string): string {
     maximumFractionDigits: 2,
   }).format(n);
 }
+
+/** Exact sum of decimal strings, e.g. ["0.1", "0.2"] -> "0.3". Signs allowed. */
+export function sumAmounts(values: string[]): string {
+  const parts = values.map((v) => {
+    const m = DECIMAL.exec(v.trim());
+    if (!m) throw new Error(`not a decimal amount: ${v}`);
+    return { negative: m[1] === "-", int: m[2], frac: m[3] ?? "" };
+  });
+  const scale = Math.max(0, ...parts.map((p) => p.frac.length));
+  let total = BigInt(0);
+  for (const p of parts) {
+    const n = BigInt(p.int + p.frac.padEnd(scale, "0"));
+    total += p.negative ? -n : n;
+  }
+  const negative = total < BigInt(0);
+  const digits = (negative ? -total : total).toString().padStart(scale + 1, "0");
+  const int = digits.slice(0, digits.length - scale);
+  const frac = digits.slice(digits.length - scale);
+  return `${negative ? "-" : ""}${int}${scale ? `.${frac}` : ""}`;
+}
+
+/** Exact a − b for decimal strings. */
+export function subtractAmounts(a: string, b: string): string {
+  return sumAmounts([a, b.startsWith("-") ? b.slice(1) : `-${b}`]);
+}
