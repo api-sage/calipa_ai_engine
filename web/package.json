@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "api:types": "openapi-typescript ../ops/openapi.json -o src/lib/api/schema.d.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@number-flow/react": "0.5.10",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.64.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
