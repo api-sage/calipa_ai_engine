@@ -110,6 +110,37 @@ function Tile({
   );
 }
 
+const MIX: { filter: Exclude<Filter, "all">; label: string; tone: string; count: (c: Record<RunFamily, number>) => number }[] = [
+  { filter: "working", label: "in progress", tone: "bg-brand", count: (c) => c.working },
+  { filter: "needs-you", label: "need action", tone: "bg-attention", count: (c) => c["needs-you"] },
+  { filter: "done", label: "finished", tone: "bg-up", count: (c) => c.done },
+  { filter: "ended", label: "stopped or failed", tone: "bg-down", count: (c) => c.stopped + c.failed },
+];
+
+/** Every audit as one bar, split by where it stands; a part filters the list like its tile. */
+function StateMix({ counts, filter, onPick }: { counts: Record<RunFamily, number>; filter: Filter; onPick: (f: Filter) => void }) {
+  const parts = MIX.map((m) => ({ ...m, n: m.count(counts) })).filter((m) => m.n > 0);
+  return (
+    <div className="flex h-2 gap-[3px]" role="group" aria-label="Audits by state">
+      {parts.map((m) => (
+        <button
+          key={m.filter}
+          type="button"
+          onClick={() => onPick(m.filter)}
+          aria-label={`${m.n} ${m.label}`}
+          title={`${m.n} ${m.label}`}
+          style={{ flexGrow: m.n }}
+          className={cn(
+            "min-w-1.5 basis-0 rounded-full outline-none transition-opacity duration-200 focus-visible:ring-2 focus-visible:ring-ring/50",
+            m.tone,
+            filter !== "all" && filter !== m.filter && "opacity-25",
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
 const COLS = "grid-cols-[minmax(0,1fr)_116px_168px_128px_36px]";
 const COLS_QUEUE = "grid-cols-[minmax(0,1fr)_116px_168px_180px_128px_36px]";
 
@@ -243,6 +274,8 @@ export function RunsBoard({ view }: { view: "mine" | "review_queue" }) {
 
   return (
     <div className="space-y-6">
+      {!queue && runs.data && runs.data.length > 0 && <StateMix counts={counts} filter={filter} onPick={toggle} />}
+
       {!queue && (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Tile label="In progress" value={runs.data && counts.working} hint="Calipa is working on these" tone="bg-brand" active={filter === "working"} onClick={() => toggle("working")} />

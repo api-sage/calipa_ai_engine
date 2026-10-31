@@ -303,7 +303,7 @@ export function RunPage({ id }: { id: string }) {
                   <h3 className="text-small font-medium">Progress</h3>
                   {events.isPending ? <Skeleton className="h-48 w-full rounded-xl" /> : <ProgressRail stages={stages} />}
                 </section>
-                {report.data && <ScopeCard scope={report.data.detail.scope} />}
+                {report.data && <ScopeCard scope={report.data.detail.scope} days={report.data.detail.days} />}
                 {r && (
                   <section className="space-y-2">
                     <h3 className="text-small font-medium">Record</h3>

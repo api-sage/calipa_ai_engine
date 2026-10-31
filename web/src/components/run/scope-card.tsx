@@ -1,4 +1,5 @@
 import type { ReportDetail } from "@/lib/api/client";
+import { ScopeDays } from "./charts";
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -18,7 +19,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /** What the run was approved to audit, as P1 read it and the policy check allowed it. */
-export function ScopeCard({ scope }: { scope: ReportDetail["scope"] }) {
+export function ScopeCard({ scope, days = [] }: { scope: ReportDetail["scope"]; days?: ReportDetail["days"] }) {
   const all = (xs: string[]) => (xs.length ? xs.join(", ") : <span className="text-ink-muted">All</span>);
   return (
     <section className="space-y-2">
@@ -29,6 +30,11 @@ export function ScopeCard({ scope }: { scope: ReportDetail["scope"] }) {
           <span className="figures">{period(scope.period_start, scope.period_end)}</span>
           <span className="block text-caption text-ink-subtle">{scope.timezone}</span>
         </Row>
+        {days.length > 0 && (
+          <div className="py-3">
+            <ScopeDays days={days} />
+          </div>
+        )}
         <Row label="Currencies">{all(scope.currencies)}</Row>
         <Row label="Controls">{all(scope.control_ids)}</Row>
         {scope.transaction_references.length > 0 && <Row label="References">{scope.transaction_references.join(", ")}</Row>}

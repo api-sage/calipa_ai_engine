@@ -11,6 +11,18 @@ test.describe("finding your way", () => {
     await expect(page).toHaveURL(`/runs/${seeded.question}`);
   });
 
+  test("the state bar splits every audit and filters like its tile", async ({ page, signIn }) => {
+    await signIn("auditor@bank");
+    await page.goto("/runs");
+    const parts = page.getByRole("group", { name: "Audits by state" }).getByRole("button");
+    await expect(parts.first()).toBeVisible();
+    const labels = await parts.evaluateAll((b) => b.map((x) => x.getAttribute("aria-label") ?? ""));
+    const total = labels.reduce((a, l) => a + Number(l.split(" ")[0]), 0);
+    await expect(page.getByRole("tab", { name: new RegExp(`^All\\s*${total}$`) })).toBeVisible();
+    await parts.first().click();
+    await expect(page.getByRole("button", { pressed: true })).toHaveCount(1);
+  });
+
   test("controls and access lists every control Calipa runs", async ({ page, signIn, request }) => {
     const reference = await (await request.get("http://localhost:8766/reference", { headers: { "X-Calipa-User": "auditor@bank" } })).json();
     await signIn("auditor@bank");

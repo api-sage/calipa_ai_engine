@@ -11,6 +11,7 @@ import { Provenance } from "@/components/calipa/provenance";
 import { ErrorState } from "@/components/calipa/states";
 import type { ReportView as Report } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
+import { FindingsBreakdown, TransientFlow } from "./charts";
 import { FindingCard } from "./finding-card";
 
 function Figure({ label, value, tone, note }: { label: string; value: number; tone?: string; note?: string }) {
@@ -136,6 +137,7 @@ export function ReportView({ report, runId, error, onRetry }: { report?: Report;
           <p className="rounded-xl border border-line px-5 py-6 text-small text-ink-muted">No exceptions were found within the approved scope.</p>
         ) : (
           <div className="space-y-3">
+            <FindingsBreakdown findings={d.findings} />
             {d.findings.map((f, i) => (
               <FindingCard key={f.key} finding={f} defaultOpen={i === 0} />
             ))}
@@ -160,6 +162,12 @@ export function ReportView({ report, runId, error, onRetry }: { report?: Report;
             ))}
           </ul>
           <Provenance kind="ai-checked" checker="V3" />
+        </Section>
+      )}
+
+      {d.days.some((x) => x.money.length > 0) && (
+        <Section title="Through the transient account" aside={<span className="text-caption text-ink-subtle">By day, in the bank&apos;s timezone</span>}>
+          <TransientFlow days={d.days} />
         </Section>
       )}
 

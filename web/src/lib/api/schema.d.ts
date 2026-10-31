@@ -298,6 +298,32 @@ export interface components {
              */
             status: "complete" | "partial";
         };
+        /** DayMoneyView */
+        DayMoneyView: {
+            /** Currency */
+            currency: string;
+            /** Into Transient */
+            into_transient: string;
+            /** Out Of Transient */
+            out_of_transient: string;
+        };
+        /**
+         * DayView
+         * @description One day of the approved period, in the bank's timezone.
+         */
+        DayView: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Entries */
+            entries: number;
+            /** Exceptions */
+            exceptions: number;
+            /** Money */
+            money: components["schemas"]["DayMoneyView"][];
+        };
         /** EventView */
         EventView: {
             /** Actor */
@@ -483,6 +509,8 @@ export interface components {
             /** Ai Calls */
             ai_calls: components["schemas"]["AICallView"][];
             data: components["schemas"]["DataView"] | null;
+            /** Days */
+            days: components["schemas"]["DayView"][];
             /** Findings */
             findings: components["schemas"]["FindingDetail"][];
             /** Limitations */

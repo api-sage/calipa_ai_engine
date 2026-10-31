@@ -280,6 +280,64 @@
         "title": "DataView",
         "type": "object"
       },
+      "DayMoneyView": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "into_transient": {
+            "title": "Into Transient",
+            "type": "string"
+          },
+          "out_of_transient": {
+            "title": "Out Of Transient",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "into_transient",
+          "out_of_transient"
+        ],
+        "title": "DayMoneyView",
+        "type": "object"
+      },
+      "DayView": {
+        "additionalProperties": false,
+        "description": "One day of the approved period, in the bank's timezone.",
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "entries": {
+            "title": "Entries",
+            "type": "integer"
+          },
+          "exceptions": {
+            "title": "Exceptions",
+            "type": "integer"
+          },
+          "money": {
+            "items": {
+              "$ref": "#/components/schemas/DayMoneyView"
+            },
+            "title": "Money",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "entries",
+          "exceptions",
+          "money"
+        ],
+        "title": "DayView",
+        "type": "object"
+      },
       "EventView": {
         "additionalProperties": false,
         "properties": {
@@ -831,6 +889,13 @@
               }
             ]
           },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayView"
+            },
+            "title": "Days",
+            "type": "array"
+          },
           "findings": {
             "items": {
               "$ref": "#/components/schemas/FindingDetail"
@@ -856,6 +921,7 @@
           "scope",
           "data",
           "reconciliation",
+          "days",
           "findings",
           "limitations",
           "ai_calls"
