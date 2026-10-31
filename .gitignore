@@ -14,8 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -221,3 +221,6 @@ __marimo__/
 
 # Eval run outputs (contain model responses)
 evals/*/results/
+
+# Playwright MCP screenshots
+.playwright-mcp/

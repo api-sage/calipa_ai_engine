@@ -12,6 +12,7 @@ from calipa.audit_trail.store import (
     get_blob,
     list_events,
     put_blob,
+    runs_with_state,
     verify_chain,
 )
 from calipa.canonical import sha256_hex
@@ -175,3 +176,37 @@ def test_tampering_is_detected(conn: psycopg.Connection) -> None:
 def test_event_for_unknown_run_is_rejected(conn: psycopg.Connection) -> None:
     with pytest.raises(RunNotFound):
         append_event(conn, uuid4(), event_type="x", actor="system")
+
+
+def test_events_after_a_seq(conn: psycopg.Connection) -> None:
+    run = new_run(conn)
+    for n in range(3):
+        append_event(conn, run.run_id, event_type="note", actor="test", payload={"n": n})
+    events = list_events(conn, run.run_id)
+    later = list_events(conn, run.run_id, after=events[0].seq)
+    assert [e.seq for e in later] == [e.seq for e in events[1:]]
+
+
+def test_runs_with_their_current_state(conn: psycopg.Connection) -> None:
+    by = f"lister-{uuid4()}@bank"
+    runs = [
+        create_run(conn, idempotency_key=f"k-{uuid4()}", initiated_by=by, request_text="audit")
+        for _ in range(3)
+    ]
+    append_event(conn, runs[0].run_id, event_type="state", actor="t", payload={}, state="RECEIVED")
+    append_event(conn, runs[0].run_id, event_type="state", actor="t", payload={}, state="DENIED")
+    append_event(conn, runs[0].run_id, event_type="note", actor="t", payload={})
+
+    found = runs_with_state(conn, initiated_by=by)
+    assert {r.run_id: state for r, state in found} == {
+        runs[0].run_id: "DENIED",
+        runs[1].run_id: None,
+        runs[2].run_id: None,
+    }
+    assert [r.run_id for r, _ in runs_with_state(conn, initiated_by=by, state="DENIED")] == [
+        runs[0].run_id
+    ]
+    oldest = runs_with_state(conn, initiated_by=by, newest_first=False, limit=2)
+    newest = runs_with_state(conn, initiated_by=by)
+    assert len(oldest) == 2
+    assert [r.run_id for r, _ in oldest] == [r.run_id for r, _ in reversed(newest)][:2]

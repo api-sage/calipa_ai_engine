@@ -186,12 +186,7 @@ class ReportStep:
             calls=disclosures(
                 ctx.conn,
                 ctx.run_id,
-                reused=[
-                    a.llm_call_id
-                    for f in inputs.findings
-                    if f.reused_from_run is not None
-                    for a in f.attempts
-                ],
+                reused=reused_call_ids(inputs),
             ),
             flags=flags,
         ).encode("utf-8")
@@ -240,42 +235,7 @@ class ReportStep:
     # --- inputs ---------------------------------------------------------------------------
 
     def _inputs(self, ctx: StepContext) -> tuple[ReportInputs, list[InputRef]]:
-        conn, run_id = ctx.conn, ctx.run_id
-        scope_ref, scope = require_artifact(conn, run_id, APPROVED_SCOPE, ApprovedScope)
-        request_ref, _ = require_artifact(conn, run_id, ENGINE_REQUEST, ReconciliationRequest)
-        result_ref, result = require_artifact(conn, run_id, ENGINE_RESULT, ReconciliationResult)
-        snapshot = latest_artifact(conn, run_id, GL_SNAPSHOT, SnapshotArtifact)
-        analysis = latest_artifact(conn, run_id, ANALYSIS, AnalysisSummary)
-        refs = [_ref(scope_ref), _ref(request_ref), _ref(result_ref)]
-        if snapshot is not None:
-            refs.append(_ref(snapshot[0]))
-
-        findings: list[Finding] = []
-        if analysis is None:
-            in_scope = len(in_scope_exceptions(result.exceptions, scope, self._controls))
-            if in_scope:
-                raise IntegrityViolation("exceptions in scope but no analysis was stored")
-            summary = None
-        else:
-            summary_ref, summary = analysis
-            refs.append(_ref(summary_ref))
-            stored = {
-                r.artifact_id: (r, f) for r, f in list_artifacts(conn, run_id, FINDING, Finding)
-            }
-            for artifact_id in summary.finding_artifact_ids:
-                ref, finding = stored[artifact_id]
-                refs.append(_ref(ref))
-                findings.append(finding)
-            in_scope = summary.exceptions_in_scope
-        inputs = ReportInputs(
-            scope=scope,
-            snapshot=snapshot[1] if snapshot else None,
-            result=result,
-            summary=summary,
-            findings=findings,
-            exceptions_in_scope=in_scope,
-        )
-        return inputs, refs
+        return load_inputs(ctx.conn, ctx.run_id, self._controls)
 
     def _skip_reason(self, ctx: StepContext, inputs: ReportInputs) -> str:
         if not inputs.findings:
@@ -408,6 +368,53 @@ def _done(ctx: StepContext, ref: ArtifactRef, artifact: ReportArtifact) -> Next:
             "flagged": bool(artifact.flags),
         },
     )
+
+
+def load_inputs(
+    conn: psycopg.Connection, run_id: UUID, controls: ControlCatalog
+) -> tuple[ReportInputs, list[InputRef]]:
+    """What a report is built from, read back from the run's artifacts. The API reads
+    the same inputs to show a report's data; it checks them against the manifest."""
+    scope_ref, scope = require_artifact(conn, run_id, APPROVED_SCOPE, ApprovedScope)
+    request_ref, _ = require_artifact(conn, run_id, ENGINE_REQUEST, ReconciliationRequest)
+    result_ref, result = require_artifact(conn, run_id, ENGINE_RESULT, ReconciliationResult)
+    snapshot = latest_artifact(conn, run_id, GL_SNAPSHOT, SnapshotArtifact)
+    analysis = latest_artifact(conn, run_id, ANALYSIS, AnalysisSummary)
+    refs = [_ref(scope_ref), _ref(request_ref), _ref(result_ref)]
+    if snapshot is not None:
+        refs.append(_ref(snapshot[0]))
+
+    findings: list[Finding] = []
+    if analysis is None:
+        in_scope = len(in_scope_exceptions(result.exceptions, scope, controls))
+        if in_scope:
+            raise IntegrityViolation("exceptions in scope but no analysis was stored")
+        summary = None
+    else:
+        summary_ref, summary = analysis
+        refs.append(_ref(summary_ref))
+        stored = {r.artifact_id: (r, f) for r, f in list_artifacts(conn, run_id, FINDING, Finding)}
+        for artifact_id in summary.finding_artifact_ids:
+            ref, finding = stored[artifact_id]
+            refs.append(_ref(ref))
+            findings.append(finding)
+        in_scope = summary.exceptions_in_scope
+    inputs = ReportInputs(
+        scope=scope,
+        snapshot=snapshot[1] if snapshot else None,
+        result=result,
+        summary=summary,
+        findings=findings,
+        exceptions_in_scope=in_scope,
+    )
+    return inputs, refs
+
+
+def reused_call_ids(inputs: ReportInputs) -> list[UUID]:
+    """The earlier AI calls behind findings carried over from a previous version."""
+    return [
+        a.llm_call_id for f in inputs.findings if f.reused_from_run is not None for a in f.attempts
+    ]
 
 
 def disclosures(

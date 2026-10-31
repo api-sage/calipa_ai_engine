@@ -21,7 +21,14 @@ from calipa.llm.prompts import ACTIVE, active_prompt, load_prompt
 from calipa.orchestrator.lifecycle import RunState as S
 from calipa.orchestrator.lifecycle import start, transition
 from calipa.orchestrator.runner import Orchestrator
-from calipa.orchestrator.steps import APPROVED_SCOPE, ENGINE_REQUEST, ENGINE_RESULT, ApprovedScope
+from calipa.orchestrator.steps import (
+    APPROVED_SCOPE,
+    ENGINE_REQUEST,
+    ENGINE_RESULT,
+    GL_SNAPSHOT,
+    ApprovedScope,
+    SnapshotArtifact,
+)
 from calipa.reference import load_account_catalog, load_control_catalog, load_tariff
 from calipa.synthetic import Anomaly, generate
 from tests.analyst_helpers import (
@@ -63,8 +70,20 @@ def analysing_run(
         tariff_sha256=TARIFF.sha256,
         approved_by="test",
     )
+    snapshot = SnapshotArtifact(
+        snapshot_sha256=request.snapshot_sha256,
+        period_start=scope.period_start,
+        period_end=scope.period_end,
+        timezone=scope.timezone,
+        status="complete",
+        limitations=[],
+        pages=[],
+        entries_in_period=len(request.entries),
+        entries=request.entries,
+    )
     for kind, value in (
         (APPROVED_SCOPE, scope),
+        (GL_SNAPSHOT, snapshot),
         (ENGINE_REQUEST, request),
         (ENGINE_RESULT, result),
     ):

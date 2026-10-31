@@ -49,3 +49,62 @@ jobs:
         run: uv run mypy
       - name: pytest
         run: uv run pytest -q
+
+  # The web app: generated API types current, types, lint, then the browser tests
+  # (web/e2e), which build the app and run it against the real API over a seeded
+  # database. No worker runs, so no model or bank is called.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CALIPA_TEST_ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.4"
+          enable-cache: true
+      - run: uv sync --frozen
+        working-directory: .
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.12.1"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: API types match ops/openapi.json
+        run: |
+          pnpm api:types
+          git diff --exit-code -- src/lib/api/schema.d.ts
+      - name: typecheck
+        run: pnpm typecheck
+      - name: lint
+        run: pnpm lint
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: browser tests
+        run: pnpm e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report
+            web/test-results
+          retention-days: 7
