@@ -24,7 +24,7 @@ from calipa.interpreter.policy import (
     Unsupported,
     decide,
 )
-from calipa.interpreter.schema import InterpretedScope
+from calipa.interpreter.schema import Assumption, InterpretedScope, PeriodSpec
 from calipa.interpreter.validate import check_interpretation
 from calipa.llm.checked import Attempt, call_checked
 from calipa.llm.client import StructuredLLM
@@ -32,7 +32,14 @@ from calipa.llm.prompts import Prompt
 from calipa.llm.tagging import tagged_json
 from calipa.orchestrator.lifecycle import MAX_CLARIFICATION_ROUNDS, RunState, count_entries
 from calipa.orchestrator.runner import Next, StepContext, StepHandler
-from calipa.orchestrator.steps import APPROVED_SCOPE, ApprovedScope
+from calipa.orchestrator.steps import (
+    APPROVED_SCOPE,
+    REQUESTED_SCOPE,
+    SOURCE_UPLOAD,
+    ApprovedScope,
+    RequestedScope,
+    SourceUpload,
+)
 
 INTERPRETATION = "interpretation"
 MAX_ATTEMPTS = 2
@@ -142,6 +149,9 @@ class InterpretStep:
         )
 
     def interpret(self, ctx: StepContext) -> Next:
+        requested = latest_artifact(ctx.conn, ctx.run_id, REQUESTED_SCOPE, RequestedScope)
+        if requested is not None:
+            return self.interpret_requested(ctx, requested[1])
         conversation = build_conversation(ctx.conn, ctx.run)
 
         def check(candidate: InterpretedScope) -> V1Check:
@@ -188,6 +198,51 @@ class InterpretStep:
         if output is None:
             return self._ask(ctx, call_ids, attempt_errors, None, RESTATE, "interpretation failed")
 
+        return self._apply_policy(ctx, call_ids, attempt_errors, output)
+
+    def interpret_requested(self, ctx: StepContext, requested: RequestedScope) -> Next:
+        """A scope the auditor chose in the upload form needs no interpretation, but
+        it goes through the same policy: entitlements, closed periods and size limits
+        apply to uploads exactly as to written requests."""
+        uploaded = latest_artifact(ctx.conn, ctx.run_id, SOURCE_UPLOAD, SourceUpload)
+        source = (
+            f"GL and statement from uploaded file {uploaded[1].filename}"
+            if uploaded is not None
+            else "structured scope chosen in the upload form"
+        )
+        output = InterpretedScope(
+            status="ok",
+            objective=requested.objective,
+            account_ids=[],
+            all_entitled_accounts=True,
+            period=PeriodSpec(
+                kind="absolute",
+                start=requested.period_start,
+                end=requested.period_end,
+                relative_unit=None,
+                relative_offset=None,
+                relative_count=None,
+                calendar="calendar",
+                source_text="the period chosen in the upload form",
+            ),
+            currencies=list(requested.currencies),
+            transaction_references=list(requested.transaction_references),
+            control_ids=[],
+            unsupported_constraints=[],
+            assumptions=[Assumption(field="source", text=source)],
+            ambiguities=[],
+            clarifying_question=None,
+            status_reason=None,
+        )
+        return self._apply_policy(ctx, [], [], output)
+
+    def _apply_policy(
+        self,
+        ctx: StepContext,
+        call_ids: list[str],
+        attempt_errors: list[list[str]],
+        output: InterpretedScope,
+    ) -> Next:
         decision = decide(output, initiator=ctx.run.initiated_by, now=ctx.now(), ctx=self._policy)
         match decision:
             case Approve(scope=scope):

@@ -16,11 +16,17 @@ export type MoneyView = S["MoneyView"];
 export type ReviewDecision = S["ReviewRequest"]["decision"];
 export type ReferenceView = S["ReferenceView"];
 export type ControlView = S["ControlView"];
+export type UploadPreview = S["UploadPreview"];
+export type UploadIssue = S["UploadIssue"];
+export type UploadRejected = S["UploadRejected"];
+export type RequestedScopeIn = S["RequestedScopeIn"];
+export type AuditObjective = RequestedScopeIn["objective"];
 
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly body: unknown = null,
   ) {
     super(message);
   }
@@ -65,7 +71,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(0, "Calipa could not be reached. Check that the API is running.");
   }
   const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, detail(body, res.statusText));
+  if (!res.ok) throw new ApiError(res.status, detail(body, res.statusText), body);
+  return body as T;
+}
+
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`/api${path}`, { method: "POST", body: form, cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "Calipa could not be reached. Check that the API is running.");
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, detail(body, res.statusText), body);
   return body as T;
 }
 
@@ -76,8 +94,26 @@ export const api = {
   run: (id: string) => request<RunView>(`/runs/${id}`),
   events: (id: string) => request<EventsView>(`/runs/${id}/events`),
   report: (id: string) => request<ReportView>(`/runs/${id}/report`),
-  createRun: (request_text: string, idempotency_key: string) =>
-    request<RunView>("/runs", { method: "POST", body: JSON.stringify({ request_text, idempotency_key }) }),
+  createRun: (
+    request_text: string,
+    idempotency_key: string,
+    upload?: { upload_sha256: string; upload_filename: string; scope: RequestedScopeIn },
+  ) =>
+    request<RunView>(
+      "/runs",
+      {
+        method: "POST",
+        body: JSON.stringify(
+          upload ? { request_text, idempotency_key, ...upload } : { request_text, idempotency_key },
+        ),
+      },
+    ),
+  uploadWorkbook: (file: File) => {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    return requestForm<UploadPreview>("/runs/uploads", form);
+  },
+  templateUrl: "/api/runs/uploads/template",
   answer: (id: string, answer: string) =>
     request<RunView>(`/runs/${id}/clarification`, { method: "POST", body: JSON.stringify({ answer }) }),
   review: (

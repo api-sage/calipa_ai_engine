@@ -42,6 +42,10 @@ EXCEPTION_LABELS: dict[ExceptionType, str] = {
     ExceptionType.DUPLICATE_INSTRUCTION_CANDIDATE: "possible duplicate instruction",
     ExceptionType.RATE_UNAVAILABLE: "no recorded rate",
     ExceptionType.RATE_AMBIGUOUS: "more than one recorded rate",
+    ExceptionType.STATEMENT_AMOUNT_MISMATCH: "a statement amount that differs from the ledger",
+    ExceptionType.MISSING_FROM_STATEMENT: "a ledger entry missing from the statement",
+    ExceptionType.DUPLICATE_ON_STATEMENT: "a statement line posted twice",
+    ExceptionType.MISSING_FROM_GL: "a statement line missing from the ledger",
 }
 
 CATEGORY_LABELS: dict[RootCause, str] = {
@@ -57,6 +61,10 @@ CATEGORY_LABELS: dict[RootCause, str] = {
     "timing_cutoff_difference": "a timing or cut-off difference",
     "wrong_account_mapping": "an entry posted to the wrong account",
     "missing_reversal": "a reversal that was not posted",
+    "statement_amount_differs": "a statement amount that differs from the ledger",
+    "missing_from_statement": "a ledger entry with no statement line",
+    "duplicate_on_statement": "a statement line carried twice",
+    "missing_from_gl": "a statement line with no ledger entry",
     "partial_reversal": "a partial reversal",
     "orphan_reversal": "a reversal with no original transfer",
     "switch_timeout_unposted": "a switch timeout that left legs unposted",

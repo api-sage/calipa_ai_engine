@@ -6,14 +6,16 @@ these steps start from; tests may also write it directly.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid5
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict
 
-from calipa.audit_trail.artifacts import put_artifact, require_artifact
+from calipa.audit_trail.artifacts import latest_artifact, put_artifact, require_artifact
+from calipa.audit_trail.store import get_blob
+from calipa.canonical import hash_value
 from calipa.engine.contract import (
     EngineException,
     ExceptionType,
@@ -22,10 +24,12 @@ from calipa.engine.contract import (
     ReconciliationRequest,
     ReconciliationResult,
 )
+from calipa.engine.statement_match import match_statements
 from calipa.errors import IntegrityViolation
 from calipa.gateway.fcy import FcyClient, GLEntry
 from calipa.gateway.rates import rates_between
 from calipa.gateway.snapshot import extract_gl_snapshot
+from calipa.ingest.excel import StatementLine, WorkbookError, parse_workbook
 from calipa.money import Currency
 from calipa.orchestrator.lifecycle import RunState
 from calipa.orchestrator.runner import Next, StepContext, StepHandler
@@ -33,6 +37,7 @@ from calipa.reference import (
     AccountCatalog,
     AccountRole,
     ControlCatalog,
+    Objective,
     Tariff,
     load_control_catalog,
 )
@@ -41,6 +46,8 @@ APPROVED_SCOPE = "approved_scope"
 GL_SNAPSHOT = "gl_snapshot"
 ENGINE_REQUEST = "engine_request"
 ENGINE_RESULT = "engine_result"
+SOURCE_UPLOAD = "source_upload"
+REQUESTED_SCOPE = "requested_scope"
 
 
 class _Artifact(BaseModel):
@@ -85,13 +92,35 @@ class SnapshotArtifact(_Artifact):
     pages: list[PageInfo]
     entries_in_period: int
     entries: list[GLEntry]  # after scope filters, whole transfers kept together
+    source: Literal["fcy_api", "excel_upload"] = "fcy_api"
+    source_blob_sha256: str | None = None  # the uploaded file, for excel_upload
+    source_filename: str | None = None
+    statements: list[StatementLine] = []  # after scope filters
+
+
+class SourceUpload(_Artifact):
+    """The workbook a run audits, already stored as a raw blob by the API."""
+
+    upload_sha256: str
+    filename: str
+
+
+class RequestedScope(_Artifact):
+    """The scope the auditor chose in the upload form. The INTERPRETING step runs
+    it through the same policy as an interpreted request, without calling the model."""
+
+    objective: Objective
+    period_start: date
+    period_end: date
+    currencies: list[Currency] = []
+    transaction_references: list[str] = []
 
 
 class Steps:
     def __init__(
         self,
         *,
-        fcy: FcyClient,
+        fcy: FcyClient | None,
         engine: ReconciliationEngine,
         catalog: AccountCatalog,
         tariff: Tariff,
@@ -119,6 +148,13 @@ class Steps:
             self._tariff.sha256,
         ):
             raise IntegrityViolation("reference data changed since the scope was approved")
+        uploaded = latest_artifact(ctx.conn, ctx.run_id, SOURCE_UPLOAD, SourceUpload)
+        if uploaded is not None:
+            return self.extract_upload(ctx, scope, uploaded[1])
+        if self._fcy is None:
+            raise RuntimeError(
+                "this run reads from the bank API but no FCY credentials are configured"
+            )
         snap = extract_gl_snapshot(
             self._fcy,
             period_start=scope.period_start,
@@ -162,6 +198,86 @@ class Steps:
             )
         return Next(RunState.RECONCILING, payload)
 
+    def extract_upload(self, ctx: StepContext, scope: ApprovedScope, upload: SourceUpload) -> Next:
+        """Build the snapshot from the uploaded workbook instead of the bank API.
+
+        The file parsed when it was uploaded; the blob store guarantees these are the
+        same bytes, so a parse failure here means the bytes changed identity and the
+        run must stop, not continue on half the data.
+        """
+        try:
+            content = get_blob(ctx.conn, upload.upload_sha256)
+        except KeyError as exc:
+            raise IntegrityViolation(f"uploaded file {upload.upload_sha256} is missing") from exc
+        try:
+            parsed = parse_workbook(content, filename=upload.filename, default_tz=scope.timezone)
+        except WorkbookError as exc:
+            raise IntegrityViolation(f"uploaded file no longer parses: {exc}") from exc
+        tz = ZoneInfo(scope.timezone)
+        window_start = datetime.combine(scope.period_start, time(0), tz)
+        window_end = datetime.combine(scope.period_end + timedelta(days=1), time(0), tz)
+        in_period = [e for e in parsed.gl_entries if window_start <= e.created_at < window_end]
+        statements = [
+            s for s in parsed.statement_lines if window_start <= s.value_date < window_end
+        ]
+        entries = _apply_scope(in_period, scope)
+        statements = _apply_statement_scope(statements, scope)
+        limitations = list(parsed.warnings)
+        excluded = len(parsed.gl_entries) - len(in_period)
+        if excluded:
+            limitations.append(
+                f"{excluded} GL entries in the file fall outside the approved period "
+                "and were excluded."
+            )
+        if len(parsed.statement_lines) - len(statements):
+            limitations.append(
+                f"{len(parsed.statement_lines) - len(statements)} statement lines fall "
+                "outside the approved scope and were excluded."
+            )
+        manifest = {
+            "source": "excel_upload",
+            "file_sha256": parsed.file_sha256,
+            "period_start": scope.period_start,
+            "period_end": scope.period_end,
+            "entries": [e.model_dump(mode="python") for e in entries],
+            "statements": [s.model_dump(mode="python") for s in statements],
+        }
+        artifact = SnapshotArtifact(
+            snapshot_sha256=hash_value(manifest),
+            period_start=scope.period_start,
+            period_end=scope.period_end,
+            timezone=scope.timezone,
+            status="complete",
+            limitations=limitations,
+            pages=[],
+            entries_in_period=len(in_period),
+            entries=entries,
+            source="excel_upload",
+            source_blob_sha256=parsed.file_sha256,
+            source_filename=upload.filename,
+            statements=statements,
+        )
+        ref = put_artifact(ctx.conn, ctx.run_id, GL_SNAPSHOT, artifact, created_by=ctx.actor)
+        ctx.record(
+            "extraction_checkpoint",
+            {
+                "source": "excel_upload",
+                "file_sha256": parsed.file_sha256,
+                "entries": len(entries),
+                "statement_lines": len(statements),
+                "consistent": True,
+            },
+        )
+        return Next(
+            RunState.RECONCILING,
+            {
+                "artifact_id": ref.artifact_id,
+                "snapshot_sha256": artifact.snapshot_sha256,
+                "entries_in_scope": len(entries),
+                "statement_lines": len(statements),
+            },
+        )
+
     def continue_partial(self, ctx: StepContext) -> Next:
         """Partial data is reconciled with its limitations carried into the report."""
         return Next(RunState.RECONCILING, {"continued_with_limitations": True})
@@ -195,6 +311,26 @@ class Steps:
         )
         put_artifact(ctx.conn, ctx.run_id, ENGINE_REQUEST, request, created_by=ctx.actor)
         result = self._engine.reconcile(request)
+        if snap.statements:
+            matched = match_statements(list(snap.entries), list(snap.statements))
+            result = result.model_copy(
+                update={
+                    "checks": sorted(
+                        (*result.checks, *matched.checks),
+                        key=lambda c: (str(c.transfer_id), c.rule_id),
+                    ),
+                    "exceptions": sorted(
+                        (*result.exceptions, *matched.exceptions),
+                        key=lambda e: (str(e.transfer_id), e.rule_id, e.exception_id),
+                    ),
+                    "limitations": [
+                        *result.limitations,
+                        f"Statement matching compared {matched.gl_entries_compared} ledger "
+                        f"entries to {matched.statement_lines_compared} statement lines "
+                        f"from {snap.source_filename or 'the uploaded file'}.",
+                    ],
+                }
+            )
         if (result.request_id, result.snapshot_sha256) != (
             request.request_id,
             request.snapshot_sha256,
@@ -228,6 +364,22 @@ def _apply_scope(entries: list[GLEntry], scope: ApprovedScope) -> list[GLEntry]:
         and (not currencies or e.currency in currencies)
     }
     return [e for e in entries if e.transfer_id in matching]
+
+
+def _apply_statement_scope(
+    statements: list[StatementLine], scope: ApprovedScope
+) -> list[StatementLine]:
+    """Statement lines have no transfers to keep together; each line stands alone."""
+    if not scope.currencies and not scope.transaction_references:
+        return statements
+    references = set(scope.transaction_references)
+    currencies = set(scope.currencies)
+    return [
+        s
+        for s in statements
+        if (not references or s.external_reference in references)
+        and (not currencies or s.currency in currencies)
+    ]
 
 
 def in_scope_exceptions(

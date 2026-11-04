@@ -73,6 +73,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/runs/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Workbook
+         * @description Check an uploaded workbook and keep its bytes. Returns what the file
+         *     holds, so the UI can show a preview before the run starts; a file with any
+         *     invalid row is refused with every problem listed.
+         */
+        post: operations["upload_workbook_runs_uploads_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/runs/uploads/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Upload Template
+         * @description A workbook with the expected sheets and one example transfer to fill in.
+         */
+        get: operations["upload_template_runs_uploads_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/runs/{run_id}": {
         parameters: {
             query?: never;
@@ -232,6 +274,11 @@ export interface components {
             /** Role */
             role: string;
         };
+        /** Body_upload_workbook_runs_uploads_post */
+        Body_upload_workbook_runs_uploads_post: {
+            /** File */
+            file: string;
+        };
         /** ClaimView */
         ClaimView: {
             /** Based On */
@@ -281,7 +328,17 @@ export interface components {
             idempotency_key: string;
             /** Request Text */
             request_text: string;
+            scope?: components["schemas"]["RequestedScopeIn"] | null;
+            /** Upload Filename */
+            upload_filename?: string | null;
+            /** Upload Sha256 */
+            upload_sha256?: string | null;
         };
+        /**
+         * Currency
+         * @enum {string}
+         */
+        Currency: "USD" | "EUR" | "GBP" | "NGN";
         /** DataView */
         DataView: {
             /** Entries In Period */
@@ -457,6 +514,11 @@ export interface components {
             /** Currency */
             currency: string;
         };
+        /**
+         * Objective
+         * @enum {string}
+         */
+        Objective: "transient_account_reconciliation" | "fee_vat_leg_completeness" | "fx_conversion_check" | "duplicate_detection" | "transaction_trace" | "statement_reconciliation";
         /** PatternView */
         PatternView: {
             /** Finding Keys */
@@ -550,6 +612,34 @@ export interface components {
             /** Patterns */
             patterns: components["schemas"]["PatternView"][];
             summary: components["schemas"]["ReportSummary"];
+        };
+        /**
+         * RequestedScopeIn
+         * @description The scope the auditor chose in the upload form: objective and period up front,
+         *     instead of a written request for P1 to interpret.
+         */
+        RequestedScopeIn: {
+            /**
+             * Currencies
+             * @default []
+             */
+            currencies: components["schemas"]["Currency"][];
+            objective: components["schemas"]["Objective"];
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /**
+             * Transaction References
+             * @default []
+             */
+            transaction_references: string[];
         };
         /** ReviewRequest */
         ReviewRequest: {
@@ -715,6 +805,59 @@ export interface components {
             rounding: string;
             /** Vat Rate */
             vat_rate: string;
+        };
+        /** UploadIssue */
+        UploadIssue: {
+            /** Column */
+            column: string | null;
+            /** Message */
+            message: string;
+            /** Row */
+            row: number;
+            /** Sheet */
+            sheet: string;
+        };
+        /**
+         * UploadPreview
+         * @description What the uploaded workbook holds, checked before the run starts.
+         */
+        UploadPreview: {
+            /** Currencies */
+            currencies: string[];
+            /** Filename */
+            filename: string;
+            /** Gl Entries */
+            gl_entries: number;
+            /** Has Statement */
+            has_statement: boolean;
+            /**
+             * Period End
+             * Format: date
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date
+             */
+            period_start: string;
+            /** Statement Lines */
+            statement_lines: number;
+            /** Upload Sha256 */
+            upload_sha256: string;
+            /** Warnings */
+            warnings: string[];
+        };
+        /**
+         * UploadRejected
+         * @description Why the workbook was refused: every row that needs attention, up to a cap.
+         */
+        UploadRejected: {
+            /** Detail */
+            detail: string;
+            /** Issues */
+            issues: components["schemas"]["UploadIssue"][];
+            /** Total Issues */
+            total_issues: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -891,6 +1034,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_workbook_runs_uploads_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Calipa-User"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_workbook_runs_uploads_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadPreview"];
+                };
+            };
+            /** @description Unprocessable Entity */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadRejected"];
+                };
+            };
+        };
+    };
+    upload_template_runs_uploads_template_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Calipa-User"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": unknown;
                 };
             };
             /** @description Validation Error */
