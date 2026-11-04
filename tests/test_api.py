@@ -57,6 +57,7 @@ def test_identity(api: TestClient) -> None:
             "duplicate_detection",
             "fee_vat_leg_completeness",
             "fx_conversion_check",
+            "statement_reconciliation",
             "transaction_trace",
             "transient_account_reconciliation",
         ],

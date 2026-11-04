@@ -18,7 +18,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from calipa.gateway.fcy import GLEntry
 from calipa.money import Currency, Money, to_decimal
 
-CONTRACT_VERSION = "0.1-draft"
+CONTRACT_VERSION = "0.2-draft"
 
 Dec = Annotated[Decimal, BeforeValidator(to_decimal)]
 
@@ -74,6 +74,10 @@ class ExceptionType(StrEnum):
     DUPLICATE_INSTRUCTION_CANDIDATE = "DUPLICATE_INSTRUCTION_CANDIDATE"
     RATE_UNAVAILABLE = "RATE_UNAVAILABLE"
     RATE_AMBIGUOUS = "RATE_AMBIGUOUS"
+    STATEMENT_AMOUNT_MISMATCH = "STATEMENT_AMOUNT_MISMATCH"
+    MISSING_FROM_STATEMENT = "MISSING_FROM_STATEMENT"
+    DUPLICATE_ON_STATEMENT = "DUPLICATE_ON_STATEMENT"
+    MISSING_FROM_GL = "MISSING_FROM_GL"
 
 
 class Severity(StrEnum):

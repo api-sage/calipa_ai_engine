@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "New audit" };
 export default function NewAuditPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-8 pt-16 pb-10">
-      <PageHeader title="New audit" description="Describe what to check in your own words. Name the period and the accounts if you can." />
+      <PageHeader title="New audit" description="Upload the GL workbook and choose what to check — or describe the audit in your own words." />
       <NewAudit />
     </div>
   );

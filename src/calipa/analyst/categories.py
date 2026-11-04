@@ -93,6 +93,26 @@ _CATEGORIES = (
         ("gl_entry", "account_catalog"),
     ),
     Category(
+        "statement_amount_differs",
+        "The statement shows a different amount for the entry than the ledger.",
+        ("gl_entry",),
+    ),
+    Category(
+        "missing_from_statement",
+        "The entry is in the ledger but has no line on the statement.",
+        ("gl_entry",),
+    ),
+    Category(
+        "duplicate_on_statement",
+        "The statement carries the line twice.",
+        ("gl_entry",),
+    ),
+    Category(
+        "missing_from_gl",
+        "The statement line has no entry in the ledger.",
+        ("gl_entry",),
+    ),
+    Category(
         "missing_reversal", "A reversal that should exist was not posted.", ("reversal_record",)
     ),
     Category("partial_reversal", "Only part of the transfer was reversed.", ("reversal_record",)),
@@ -181,6 +201,29 @@ _CANDIDATES: dict[ExceptionType, tuple[RootCause, ...]] = {
         "switch_timeout_unposted",
         "posted_not_settled",
         "missing_reversal",
+    ),
+    E.STATEMENT_AMOUNT_MISMATCH: (
+        "statement_amount_differs",
+        "rounding_difference",
+        "timing_cutoff_difference",
+        "manual_adjustment",
+    ),
+    E.MISSING_FROM_STATEMENT: (
+        "missing_from_statement",
+        "timing_cutoff_difference",
+        "posted_not_settled",
+        "switch_timeout_unposted",
+    ),
+    E.DUPLICATE_ON_STATEMENT: (
+        "duplicate_on_statement",
+        "duplicate_posting_same_instruction",
+        "manual_adjustment",
+    ),
+    E.MISSING_FROM_GL: (
+        "missing_from_gl",
+        "timing_cutoff_difference",
+        "switch_timeout_unposted",
+        "manual_adjustment",
     ),
 }
 _CANDIDATES[E.VAT_LEG_MISSING] = _CANDIDATES[E.FEE_LEG_MISSING]

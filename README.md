@@ -1,5 +1,5 @@
 # calipa_ai_engine
-Calipa is an AI-powered General Ledger (GL) reconciliation, audit, and assurance platform that integrates with core banking systems to validate transactions, detect discrepancies, verify reversals, investigate root causes, and generate evidence-backed audit reports through natural-language requests.
+Calipa is an AI-powered General Ledger (GL) reconciliation, audit, and assurance platform. Bank staff upload a GL workbook (GL entries plus, optionally, statement lines); Calipa validates every row, reconciles the ledger to the statement, investigates each break with evidence, and produces a report a second person reviews. A run can also read from the core banking API from a written request.
 
 ## Intelligence Layer (Python)
 
@@ -27,7 +27,8 @@ Layout:
 - `src/calipa/gateway/snapshot.py` – reliable GL snapshots (closed periods, per-day reads, count checks, hashes)
 - `src/calipa/gateway/rates.py` – daily FX rate copies
 - `src/calipa/reference/` – versioned account roles, fee schedule, control catalog and entitlements (drafts, pending confirmation)
-- `src/calipa/engine/` – draft Reconciliation Engine contract and a temporary stand-in engine
+- `src/calipa/engine/` – draft Reconciliation Engine contract, a temporary stand-in engine, and GL-to-statement matching (`statement_match.py`)
+- `src/calipa/ingest/` – the uploaded workbook: GL and statement sheets parsed into ledger entries, or rejected with every bad row listed; `GET /runs/uploads/template` serves a blank template
 - `src/calipa/synthetic/` – seeded synthetic GL data with planted, labelled anomalies
 - `src/calipa/orchestrator/` – run state machine, step runner with retries and resume, workers (advisory locks)
 - `src/calipa/interpreter/` – P1 Query Interpreter step: V1 checks, date resolution in code, policy decision (entitlements, closed periods, limits)

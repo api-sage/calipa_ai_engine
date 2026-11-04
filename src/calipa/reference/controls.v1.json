@@ -1,7 +1,7 @@
 {
   "version": "1",
   "status": "draft, pending confirmation by Finance/Ops",
-  "source": "Derived from the stand-in engine rules and the exception contract 0.1-draft.",
+  "source": "Derived from the stand-in engine rules and the exception contract 0.2-draft.",
   "controls": [
     {
       "control_id": "C-FEE-LEG",
@@ -32,6 +32,11 @@
       "control_id": "C-DUPLICATE",
       "name": "No duplicate entries or duplicate instructions",
       "exception_types": ["DUPLICATE_ENTRY", "DUPLICATE_INSTRUCTION_CANDIDATE"]
+    },
+    {
+      "control_id": "C-STMT",
+      "name": "Ledger entries agree to the bank statement",
+      "exception_types": ["STATEMENT_AMOUNT_MISMATCH", "MISSING_FROM_STATEMENT", "DUPLICATE_ON_STATEMENT", "MISSING_FROM_GL"]
     }
   ],
   "objectives": {
@@ -39,6 +44,7 @@
     "fee_vat_leg_completeness": ["C-FEE-LEG", "C-VAT-LEG", "C-STRUCTURE"],
     "fx_conversion_check": ["C-FX"],
     "duplicate_detection": ["C-DUPLICATE"],
-    "transaction_trace": ["C-FEE-LEG", "C-VAT-LEG", "C-FX", "C-RESIDUAL", "C-STRUCTURE", "C-DUPLICATE"]
+    "transaction_trace": ["C-FEE-LEG", "C-VAT-LEG", "C-FX", "C-RESIDUAL", "C-STRUCTURE", "C-DUPLICATE", "C-STMT"],
+    "statement_reconciliation": ["C-STMT"]
   }
 }

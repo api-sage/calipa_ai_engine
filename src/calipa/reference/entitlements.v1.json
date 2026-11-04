@@ -11,7 +11,8 @@
         "fee_vat_leg_completeness",
         "fx_conversion_check",
         "duplicate_detection",
-        "transaction_trace"
+        "transaction_trace",
+        "statement_reconciliation"
       ],
       "max_period_days": 92
     },

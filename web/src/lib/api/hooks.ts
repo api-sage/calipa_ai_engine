@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError, type EventView, type ReviewDecision, type RunView } from "./client";
+import {
+  api,
+  ApiError,
+  type EventView,
+  type RequestedScopeIn,
+  type ReviewDecision,
+  type RunView,
+  type UploadPreview,
+} from "./client";
 import { RUN_STATE_META, type RunState } from "@/lib/run-state";
 
 export const keys = {
@@ -145,8 +153,20 @@ export function useReview(id: string) {
 
 export function useCreateRun() {
   const qc = useQueryClient();
-  return useMutation<RunView, ApiError, { text: string; key: string }>({
-    mutationFn: ({ text, key }) => api.createRun(text, key),
+  return useMutation<
+    RunView,
+    ApiError,
+    {
+      text: string;
+      key: string;
+      upload?: { upload_sha256: string; upload_filename: string; scope: RequestedScopeIn };
+    }
+  >({
+    mutationFn: ({ text, key, upload }) => api.createRun(text, key, upload),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["runs"] }),
   });
+}
+
+export function useUploadWorkbook() {
+  return useMutation<UploadPreview, ApiError, File>({ mutationFn: (file) => api.uploadWorkbook(file) });
 }

@@ -97,6 +97,20 @@
         "title": "AccountView",
         "type": "object"
       },
+      "Body_upload_workbook_runs_uploads_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_workbook_runs_uploads_post",
+        "type": "object"
+      },
       "ClaimView": {
         "additionalProperties": false,
         "properties": {
@@ -233,6 +247,40 @@
             "minLength": 1,
             "title": "Request Text",
             "type": "string"
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequestedScopeIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upload_filename": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Filename"
+          },
+          "upload_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upload Sha256"
           }
         },
         "required": [
@@ -241,6 +289,16 @@
         ],
         "title": "CreateRun",
         "type": "object"
+      },
+      "Currency": {
+        "enum": [
+          "USD",
+          "EUR",
+          "GBP",
+          "NGN"
+        ],
+        "title": "Currency",
+        "type": "string"
       },
       "DataView": {
         "additionalProperties": false,
@@ -747,6 +805,18 @@
         "title": "MoneyView",
         "type": "object"
       },
+      "Objective": {
+        "enum": [
+          "transient_account_reconciliation",
+          "fee_vat_leg_completeness",
+          "fx_conversion_check",
+          "duplicate_detection",
+          "transaction_trace",
+          "statement_reconciliation"
+        ],
+        "title": "Objective",
+        "type": "string"
+      },
       "PatternView": {
         "additionalProperties": false,
         "properties": {
@@ -1017,6 +1087,49 @@
           "markdown"
         ],
         "title": "ReportView",
+        "type": "object"
+      },
+      "RequestedScopeIn": {
+        "additionalProperties": false,
+        "description": "The scope the auditor chose in the upload form: objective and period up front,\ninstead of a written request for P1 to interpret.",
+        "properties": {
+          "currencies": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Currency"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "objective": {
+            "$ref": "#/components/schemas/Objective"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "transaction_references": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Transaction References",
+            "type": "array"
+          }
+        },
+        "required": [
+          "objective",
+          "period_start",
+          "period_end"
+        ],
+        "title": "RequestedScopeIn",
         "type": "object"
       },
       "ReviewRequest": {
@@ -1469,6 +1582,133 @@
         "title": "TariffView",
         "type": "object"
       },
+      "UploadIssue": {
+        "additionalProperties": false,
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "row": {
+            "title": "Row",
+            "type": "integer"
+          },
+          "sheet": {
+            "title": "Sheet",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sheet",
+          "row",
+          "column",
+          "message"
+        ],
+        "title": "UploadIssue",
+        "type": "object"
+      },
+      "UploadPreview": {
+        "additionalProperties": false,
+        "description": "What the uploaded workbook holds, checked before the run starts.",
+        "properties": {
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "gl_entries": {
+            "title": "Gl Entries",
+            "type": "integer"
+          },
+          "has_statement": {
+            "title": "Has Statement",
+            "type": "boolean"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "statement_lines": {
+            "title": "Statement Lines",
+            "type": "integer"
+          },
+          "upload_sha256": {
+            "title": "Upload Sha256",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "upload_sha256",
+          "filename",
+          "gl_entries",
+          "statement_lines",
+          "has_statement",
+          "period_start",
+          "period_end",
+          "currencies",
+          "warnings"
+        ],
+        "title": "UploadPreview",
+        "type": "object"
+      },
+      "UploadRejected": {
+        "additionalProperties": false,
+        "description": "Why the workbook was refused: every row that needs attention, up to a cap.",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/UploadIssue"
+            },
+            "title": "Issues",
+            "type": "array"
+          },
+          "total_issues": {
+            "title": "Total Issues",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detail",
+          "issues",
+          "total_issues"
+        ],
+        "title": "UploadRejected",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1789,6 +2029,106 @@
           }
         },
         "summary": "Create"
+      }
+    },
+    "/runs/uploads": {
+      "post": {
+        "description": "Check an uploaded workbook and keep its bytes. Returns what the file\nholds, so the UI can show a preview before the run starts; a file with any\ninvalid row is refused with every problem listed.",
+        "operationId": "upload_workbook_runs_uploads_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Calipa-User",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Calipa-User"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_workbook_runs_uploads_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPreview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadRejected"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          }
+        },
+        "summary": "Upload Workbook"
+      }
+    },
+    "/runs/uploads/template": {
+      "get": {
+        "description": "A workbook with the expected sheets and one example transfer to fill in.",
+        "operationId": "upload_template_runs_uploads_template_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Calipa-User",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Calipa-User"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Template"
       }
     },
     "/runs/{run_id}": {

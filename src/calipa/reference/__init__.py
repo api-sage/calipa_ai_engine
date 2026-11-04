@@ -28,6 +28,7 @@ class Objective(StrEnum):
     FX_CONVERSION_CHECK = "fx_conversion_check"
     DUPLICATE_DETECTION = "duplicate_detection"
     TRANSACTION_TRACE = "transaction_trace"
+    STATEMENT_RECONCILIATION = "statement_reconciliation"
 
 
 class AccountRole(StrEnum):

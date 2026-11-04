@@ -22,7 +22,17 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 import psycopg
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
@@ -48,22 +58,33 @@ from calipa.api.schemas import (
     RunView,
     SectionView,
     TariffView,
+    UploadIssue,
+    UploadPreview,
+    UploadRejected,
     VersionView,
 )
-from calipa.audit_trail.artifacts import require_artifact
+from calipa.audit_trail.artifacts import put_artifact, require_artifact
 from calipa.audit_trail.db import open_pool
 from calipa.audit_trail.store import (
     Run,
     RunEvent,
     create_run,
+    get_blob,
     get_run,
     list_events,
     now_utc,
+    put_blob,
     runs_with_state,
     verify_chain,
 )
 from calipa.config import Settings, get_settings
 from calipa.errors import IntegrityViolation, RunNotFound
+from calipa.ingest.excel import (
+    MAX_UPLOAD_BYTES,
+    WorkbookError,
+    build_template,
+    parse_workbook,
+)
 from calipa.metrics import collect as collect_metrics
 from calipa.metrics import render as render_metrics
 from calipa.orchestrator.lifecycle import (
@@ -73,6 +94,12 @@ from calipa.orchestrator.lifecycle import (
     TransitionNotAllowed,
     current_state,
     start,
+)
+from calipa.orchestrator.steps import (
+    REQUESTED_SCOPE,
+    SOURCE_UPLOAD,
+    RequestedScope,
+    SourceUpload,
 )
 from calipa.reference import (
     AccountCatalog,
@@ -253,6 +280,11 @@ def create_app(deps: ApiDeps) -> FastAPI:
     def create(body: CreateRun, conn: Conn, user: User) -> RunView:
         if not deps.entitlements.grant_for(user).can_initiate:
             raise Forbidden(f"{user} is not entitled to start audits")
+        if body.upload_sha256 is not None:
+            try:
+                get_blob(conn, body.upload_sha256)
+            except KeyError:
+                raise HTTPException(422, "upload not found; upload the file again") from None
         try:
             run = create_run(
                 conn,
@@ -263,11 +295,101 @@ def create_app(deps: ApiDeps) -> FastAPI:
         except ValueError as exc:
             raise Conflict(str(exc)) from None
         if run.created:
+            if body.upload_sha256 is not None and body.scope is not None:
+                put_artifact(
+                    conn,
+                    run.run_id,
+                    SOURCE_UPLOAD,
+                    SourceUpload(
+                        upload_sha256=body.upload_sha256,
+                        filename=body.upload_filename or "upload.xlsx",
+                    ),
+                    created_by=user,
+                )
+                put_artifact(
+                    conn,
+                    run.run_id,
+                    REQUESTED_SCOPE,
+                    RequestedScope(
+                        objective=body.scope.objective,
+                        period_start=body.scope.period_start,
+                        period_end=body.scope.period_end,
+                        currencies=list(body.scope.currencies),
+                        transaction_references=list(body.scope.transaction_references),
+                    ),
+                    created_by=user,
+                )
             try:
                 start(conn, run.run_id, actor=user)
             except TransitionNotAllowed:
                 pass  # a concurrent identical request started it
         return _run_view(conn, run, user, deps.entitlements)
+
+    @app.post(
+        "/runs/uploads",
+        response_model=None,
+        responses={200: {"model": UploadPreview}, 422: {"model": UploadRejected}},
+    )
+    async def upload_workbook(
+        file: Annotated[UploadFile, File()], conn: Conn, user: User
+    ) -> UploadPreview | JSONResponse:
+        """Check an uploaded workbook and keep its bytes. Returns what the file
+        holds, so the UI can show a preview before the run starts; a file with any
+        invalid row is refused with every problem listed."""
+        if not deps.entitlements.grant_for(user).can_initiate:
+            raise Forbidden(f"{user} is not entitled to start audits")
+        filename = file.filename or "upload.xlsx"
+        content = await file.read()
+        if not filename.lower().endswith(".xlsx"):
+            return _rejected(f"{filename} is not an .xlsx file", [], 1)
+        if len(content) > MAX_UPLOAD_BYTES:
+            return _rejected("the file is larger than 10 MB", [], 1)
+        try:
+            parsed = parse_workbook(content, filename=filename)
+        except WorkbookError as exc:
+            return _rejected(
+                str(exc),
+                [
+                    UploadIssue(sheet=i.sheet, row=i.row, column=i.column, message=i.message)
+                    for i in exc.issues
+                ],
+                exc.total,
+            )
+        sha256 = put_blob(
+            conn,
+            content,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        return UploadPreview(
+            upload_sha256=sha256,
+            filename=filename,
+            gl_entries=len(parsed.gl_entries),
+            statement_lines=len(parsed.statement_lines),
+            has_statement=parsed.has_statement,
+            period_start=parsed.period_start,
+            period_end=parsed.period_end,
+            currencies=list(parsed.currencies),
+            warnings=list(parsed.warnings),
+        )
+
+    @app.get(
+        "/runs/uploads/template",
+        response_class=Response,
+        responses={
+            200: {
+                "content": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {}}
+            }
+        },
+    )
+    def upload_template(user: User) -> Response:
+        """A workbook with the expected sheets and one example transfer to fill in."""
+        return Response(
+            build_template(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": 'attachment; filename="calipa-reconciliation-template.xlsx"'
+            },
+        )
 
     @app.get("/runs")
     def list_runs(
@@ -403,6 +525,13 @@ def _handler(status: int) -> Callable[[Request, Exception], Response]:
         return JSONResponse({"detail": str(exc)}, status_code=status)
 
     return handle
+
+
+def _rejected(detail: str, issues: list[UploadIssue], total: int) -> JSONResponse:
+    return JSONResponse(
+        UploadRejected(detail=detail, issues=issues, total_issues=total).model_dump(mode="json"),
+        status_code=422,
+    )
 
 
 def _report(conn: psycopg.Connection, run_id: UUID) -> tuple[ReportSummary, ReportArtifact]:
