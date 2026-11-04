@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/calipa/states";
 import { ACCOUNT_ROLES, objectiveLabel } from "@/lib/labels";
 import { useCreateRun, useMe } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
+import { UploadAudit } from "./upload-audit";
 
 // Requests the interpreter handles well today (from the P1 evals).
 const EXAMPLES = [
@@ -34,6 +35,31 @@ function newKey() {
 }
 
 export function NewAudit() {
+  const me = useMe();
+  if (me.data && !me.data.can_initiate) {
+    return (
+      <EmptyState
+        art={DeniedArt}
+        title="You review audits; you don't start them"
+        body={`${me.data.user} is entitled to review reports only. Ask an auditor to start one, or switch user in development.`}
+        className="rounded-2xl border border-line"
+      />
+    );
+  }
+  return (
+    <div className="space-y-10">
+      <UploadAudit />
+      <div className="flex items-center gap-4" aria-hidden>
+        <span className="h-px flex-1 bg-line" />
+        <span className="text-caption text-ink-subtle">or describe it instead</span>
+        <span className="h-px flex-1 bg-line" />
+      </div>
+      <DescribeAudit />
+    </div>
+  );
+}
+
+function DescribeAudit() {
   const me = useMe();
   const router = useRouter();
   const create = useCreateRun();
@@ -74,17 +100,6 @@ export function NewAudit() {
           setError(e);
         },
       },
-    );
-  }
-
-  if (me.data && !me.data.can_initiate) {
-    return (
-      <EmptyState
-        art={DeniedArt}
-        title="You review audits; you don't start them"
-        body={`${me.data.user} is entitled to review reports only. Ask an auditor to start one, or switch user in development.`}
-        className="rounded-2xl border border-line"
-      />
     );
   }
 

@@ -22,6 +22,10 @@ export const OBJECTIVES: Record<string, { label: string; what: string }> = {
     label: "Transaction trace",
     what: "Follow named transfers through every leg they posted.",
   },
+  statement_reconciliation: {
+    label: "GL to statement",
+    what: "Every ledger entry agrees to the bank statement, and nothing is missing on either side.",
+  },
 };
 
 export const objectiveLabel = (o: string) => OBJECTIVES[o]?.label ?? o.replace(/_/g, " ");
@@ -47,4 +51,8 @@ export const EXCEPTION_TYPES: Record<string, string> = {
   DUPLICATE_INSTRUCTION_CANDIDATE: "Possible duplicate instruction",
   RATE_UNAVAILABLE: "No rate for the day",
   RATE_AMBIGUOUS: "More than one rate for the day",
+  STATEMENT_AMOUNT_MISMATCH: "Statement amount differs",
+  MISSING_FROM_STATEMENT: "Missing from the statement",
+  DUPLICATE_ON_STATEMENT: "Duplicated on the statement",
+  MISSING_FROM_GL: "Missing from the ledger",
 };

@@ -7,9 +7,11 @@ from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from calipa.money import Currency
 from calipa.orchestrator.lifecycle import RunState
+from calipa.reference import Objective
 
 
 class _Model(BaseModel):
@@ -19,10 +21,40 @@ class _Model(BaseModel):
 # --- requests --------------------------------------------------------------------------
 
 
+class RequestedScopeIn(_Model):
+    """The scope the auditor chose in the upload form: objective and period up front,
+    instead of a written request for P1 to interpret."""
+
+    objective: Objective
+    period_start: date
+    period_end: date
+    currencies: list[Currency] = []  # empty: all
+    transaction_references: list[str] = Field(default=[], max_length=20)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> RequestedScopeIn:
+        if self.period_start > self.period_end:
+            raise ValueError("period_start is after period_end")
+        return self
+
+
 class CreateRun(_Model):
     request_text: str = Field(min_length=1, max_length=4_000)
     # Chosen by the client, once per submission: sending it again returns the same run.
     idempotency_key: str = Field(min_length=8, max_length=200, pattern=r"^[A-Za-z0-9._:-]+$")
+    # For runs from an uploaded workbook: the file's SHA-256 from POST /runs/uploads,
+    # and the scope the auditor chose. Without both, the run reads from the bank API.
+    upload_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    upload_filename: str | None = Field(default=None, max_length=200)
+    scope: RequestedScopeIn | None = None
+
+    @model_validator(mode="after")
+    def _upload_needs_scope(self) -> CreateRun:
+        if (self.upload_sha256 is None) != (self.scope is None):
+            raise ValueError("upload_sha256 and scope go together")
+        if self.upload_filename is not None and self.upload_sha256 is None:
+            raise ValueError("upload_filename needs upload_sha256")
+        return self
 
 
 class ClarificationAnswer(_Model):
@@ -37,6 +69,35 @@ class ReviewRequest(_Model):
 
 
 # --- responses -------------------------------------------------------------------------
+
+
+class UploadPreview(_Model):
+    """What the uploaded workbook holds, checked before the run starts."""
+
+    upload_sha256: str
+    filename: str
+    gl_entries: int
+    statement_lines: int
+    has_statement: bool
+    period_start: date
+    period_end: date
+    currencies: list[str]
+    warnings: list[str]
+
+
+class UploadIssue(_Model):
+    sheet: str
+    row: int
+    column: str | None
+    message: str
+
+
+class UploadRejected(_Model):
+    """Why the workbook was refused: every row that needs attention, up to a cap."""
+
+    detail: str
+    issues: list[UploadIssue]
+    total_issues: int
 
 
 class ReportSummary(_Model):

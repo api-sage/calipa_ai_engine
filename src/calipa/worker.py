@@ -14,7 +14,7 @@ import logging
 import socket
 import time
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import AbstractContextManager, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 
 import psycopg
 
@@ -52,7 +52,7 @@ log = logging.getLogger("calipa.worker")
 
 def build_handlers(
     *,
-    fcy: FcyClient,
+    fcy: FcyClient | None,
     llm: StructuredLLM,
     settings: Settings,
     lanes: Callable[[], AbstractContextManager[StructuredLLM]] | None = None,
@@ -128,8 +128,6 @@ class Anchoring:
 
 
 def run(settings: Settings, *, once: bool) -> None:
-    if settings.fcy_username is None or settings.fcy_password is None:
-        raise SystemExit("set CALIPA_FCY_USERNAME and CALIPA_FCY_PASSWORD")
     worker_id = f"worker:{socket.gethostname()}"
     with (
         connect(settings.database_url) as conn,
@@ -146,14 +144,27 @@ def run(settings: Settings, *, once: bool) -> None:
             with pool.connection() as lane_conn:
                 yield llm_for(lane_conn)
 
-        with ReadOnlyClient(
-            conn,
-            base_url=settings.fcy_base_url,
-            username=settings.fcy_username,
-            password=settings.fcy_password,
-        ) as http:
+        # The bank connection is only needed for runs that read from the bank API;
+        # runs from an uploaded workbook never touch it.
+        with ExitStack() as stack:
+            http = (
+                stack.enter_context(
+                    ReadOnlyClient(
+                        conn,
+                        base_url=settings.fcy_base_url,
+                        username=settings.fcy_username,
+                        password=settings.fcy_password,
+                    )
+                )
+                if settings.fcy_username is not None and settings.fcy_password is not None
+                else None
+            )
+            if http is None:
+                log.warning(
+                    "FCY credentials are not set: only runs from uploaded files can progress"
+                )
             handlers = build_handlers(
-                fcy=FcyClient(http),
+                fcy=FcyClient(http) if http is not None else None,
                 llm=llm_for(conn),
                 settings=settings,
                 lanes=lane if settings.analysis_parallelism > 1 else None,
