@@ -18,8 +18,9 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql:///calipa"
 
-    # Which model provider runs P1/P2/P3: "meta" (Llama API) or "anthropic" (Claude).
-    llm_provider: Literal["meta", "anthropic"] = "meta"
+    # Which model provider runs P1/P2/P3: "meta" (Llama API), "muse" (Meta Model
+    # API) or "anthropic" (Claude).
+    llm_provider: Literal["meta", "muse", "anthropic"] = "meta"
     # The Llama API model id. Required for "meta"; no default is guessed.
     llama_model: str | None = None
     # Provider keys keep the names the SDKs use. Read here too, so a key in `.env`
@@ -31,6 +32,16 @@ class Settings(BaseSettings):
     llama_price_output_per_mtok: Decimal | None = None
     llama_timeout_seconds: float = 600.0
     llama_max_retries: int = 2
+    # The Muse model id. Required for "muse"; no default is guessed.
+    muse_model: str | None = None
+    # The Meta Model API key, as named in its docs. No SDK reads it; the Muse
+    # client sends it as a Bearer token itself.
+    muse_api_key: SecretStr | None = Field(default=None, validation_alias="MODEL_API_KEY")
+    # USD per million tokens on the bank's Meta Model API contract. Unset: unknown.
+    muse_price_input_per_mtok: Decimal | None = None
+    muse_price_output_per_mtok: Decimal | None = None
+    muse_timeout_seconds: float = 600.0
+    muse_max_retries: int = 2
 
     claude_model: str = "claude-opus-5-5"
     claude_timeout_seconds: float = 600.0

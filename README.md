@@ -21,7 +21,7 @@ Layout:
 - `src/calipa/canonical.py` – canonical JSON and SHA-256 used for every hash
 - `src/calipa/audit_trail/` – append-only Postgres schema, hash-chained run events, raw blob store, migrations (`python -m calipa.audit_trail.db migrate|check`)
 - `src/calipa/audit_trail/anchor.py` – chain heads anchored to write-once storage, and the check that catches a rewritten history (`python -m calipa.audit_trail.anchor publish|verify`)
-- `src/calipa/llm/` – the only path to a model: Meta Llama API (default) or Claude, chosen by `CALIPA_LLM_PROVIDER`; logs request, raw response, served model, usage, cost (Llama's price comes from `CALIPA_LLAMA_PRICE_*`)
+- `src/calipa/llm/` – the only path to a model: Meta Llama API (default), Muse (Meta Model API) or Claude, chosen by `CALIPA_LLM_PROVIDER`; logs request, raw response, served model, usage, cost (Llama's price comes from `CALIPA_LLAMA_PRICE_*`)
 - `src/calipa/gateway/http.py` – read-only HTTP client: GET allowlist enforced twice, retries, every call logged
 - `src/calipa/gateway/fcy.py` – typed FCY API client; strict models fail loudly on API changes
 - `src/calipa/gateway/snapshot.py` – reliable GL snapshots (closed periods, per-day reads, count checks, hashes)
@@ -47,7 +47,7 @@ Layout:
 Live read-only check against the real FCY API (needs credentials in `.env`):
 `CALIPA_LIVE=1 uv run pytest tests/test_live_fcy.py`
 
-Evals against the real model (need `LLAMA_API_KEY` and `CALIPA_LLAMA_MODEL`, or `CALIPA_LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`; every call is recorded):
+Evals against the real model (need `LLAMA_API_KEY` and `CALIPA_LLAMA_MODEL`, `MODEL_API_KEY` and `CALIPA_MUSE_MODEL` with `CALIPA_LLM_PROVIDER=muse`, or `CALIPA_LLM_PROVIDER=anthropic` with `ANTHROPIC_API_KEY`; every call is recorded):
 `uv run python evals/run_p1.py` (P1) and `uv run python evals/run_p2.py [--limit N]` (P2; about USD 0.10 per case on Claude) and `uv run python evals/run_p3.py [--limit N]` (P2 then P3 on runs with several findings; writes each report out for a person to read)
 
 Running the service (API and worker are separate processes; runs only progress while a worker runs):

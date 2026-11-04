@@ -1,10 +1,10 @@
 """Per-token prices in USD per million tokens. Used for cost tracking and per-run
 caps, so a model with no entry has unknown cost (None), never zero.
 
-Claude's prices are published and listed here. Meta does not publish fixed Llama API
-prices for every account, so Llama's come from configuration (the price on the
-bank's contract); until they are set, Llama cost stays unknown and steps rely on
-their call caps."""
+Claude's prices are published and listed here. Meta does not publish fixed prices
+for every account on the Llama and Model APIs, so theirs come from configuration
+(the price on the bank's contract); until they are set, cost stays unknown and
+steps rely on their call caps."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ PRICES: dict[str, Price] = {
 
 
 def flat_price(input_per_mtok: Decimal, output_per_mtok: Decimal) -> Price:
-    """A provider without prompt caching (Llama): cached tokens cost as input."""
+    """A provider without prompt caching (Llama, Muse): cached tokens cost as input."""
     return Price(
         input=input_per_mtok,
         output=output_per_mtok,
@@ -52,7 +52,7 @@ def cost_usd(
     price: Price | None = None,
 ) -> Decimal | None:
     """`price` overrides the table, for providers whose price is configured per
-    deployment rather than published (see Settings.llama_price_*)."""
+    deployment rather than published (see Settings.llama_price_* and muse_price_*)."""
     price = price or PRICES.get(model or "")
     if price is None:
         return None
