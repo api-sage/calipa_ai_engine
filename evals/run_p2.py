@@ -2,8 +2,9 @@
 
     uv run python evals/run_p2.py [--only ID ...] [--limit N]
 
-Needs model credentials (LLAMA_API_KEY and CALIPA_LLAMA_MODEL, or ANTHROPIC_API_KEY
-with CALIPA_LLM_PROVIDER=anthropic) and the database in CALIPA_DATABASE_URL. Every call is
+Needs model credentials (LLAMA_API_KEY and CALIPA_LLAMA_MODEL, MODEL_API_KEY and
+CALIPA_MUSE_MODEL with CALIPA_LLM_PROVIDER=muse, or ANTHROPIC_API_KEY with
+CALIPA_LLM_PROVIDER=anthropic) and the database in CALIPA_DATABASE_URL. Every call is
 recorded in the audit tables like any other run.
 
 Each case plants one known problem in synthetic data shaped like the live API (see

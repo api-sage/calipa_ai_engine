@@ -81,7 +81,7 @@ const SWATCHES: { group: string; tokens: { name: string; role: string }[] }[] = 
       { name: "up", role: "Increase, passed, done" },
       { name: "down", role: "Decrease, failed" },
       { name: "attention", role: "Needs a person" },
-      { name: "ai", role: "Written by Claude" },
+      { name: "ai", role: "Written by Meta Muse Spark" },
       { name: "verified", role: "Checked by code" },
     ],
   },

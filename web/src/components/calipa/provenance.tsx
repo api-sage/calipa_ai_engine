@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 /**
  * Where a piece of the report came from. This is the trust story of the product,
  * so it is always visible, never only on hover.
- * - ai-checked: Claude wrote it and a code checker passed it (V1/V2/V3)
- * - ai-dropped: Claude claimed it, the checker could not trace it, so it is shown struck out
+ * - ai-checked: Meta Muse Spark wrote it and a code checker passed it (V1/V2/V3)
+ * - ai-dropped: the model claimed it, the checker could not trace it, so it is shown struck out
  * - code: computed by code from the data; no model involved
  */
 export function Provenance({
@@ -37,7 +37,7 @@ export function Provenance({
     <span className={cn("inline-flex items-center gap-1.5 text-caption", className)}>
       <span className="inline-flex items-center gap-1 text-ai">
         <Sparkles className="size-3.5" aria-hidden />
-        Written by Claude
+        Written by Meta Muse Spark
       </span>
       <span className="text-ink-subtle" aria-hidden>
         ·

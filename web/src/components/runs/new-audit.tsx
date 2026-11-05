@@ -150,7 +150,7 @@ function DescribeAudit() {
         open={confirming}
         onOpenChange={setConfirming}
         title="Start this audit?"
-        description="Calipa reads the request, then fetches and reconciles the ledger. It calls Claude several times along the way, and every step is recorded in the audit trail."
+        description="Calipa reads the request, then fetches and reconciles the ledger. Meta Muse Spark helps explain the evidence, and every step is recorded in the audit trail."
         confirm="Start audit"
         icon={Play}
         pending={create.isPending}

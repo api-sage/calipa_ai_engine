@@ -248,7 +248,7 @@ export function ReportView({ report, runId, error, onRetry }: { report?: Report;
         <Disclosure title="How AI was used" count={d.ai_calls.length}>
           <div className="space-y-3 px-5 py-4">
             <p className="max-w-[70ch] text-small text-ink-muted text-pretty">
-              AI wrote only the text marked as written by Claude. It never saw account numbers and never wrote a value: every number, date,
+              Meta Muse Spark wrote only the text marked as written by Meta Muse Spark. It never saw account numbers and never wrote a value: every number, date,
               amount and id was inserted by code from the evidence. Every answer was checked by code before use.
             </p>
             <div className="overflow-x-auto">

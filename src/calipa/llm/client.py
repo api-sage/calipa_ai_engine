@@ -1,7 +1,7 @@
 """The only path to a language model. Each call is recorded in two append-only rows:
 the full request before it is sent, and the outcome after, with the raw response
-bytes. Steps depend on `StructuredLLM`; `ClaudeClient` and `LlamaClient` (in
-calipa.llm.llama) are the two providers, chosen by configuration.
+bytes. Steps depend on `StructuredLLM`; `ClaudeClient`, `LlamaClient` (in
+calipa.llm.llama) and `MuseClient` (in calipa.llm.muse), chosen by configuration.
 
 SDK helpers that parse and validate inside the SDK would lose a response that fails
 validation before it could be stored. Instead each client sends the JSON schema
