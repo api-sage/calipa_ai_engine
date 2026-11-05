@@ -13,7 +13,7 @@
   Three layers:
   1. Raw palette (below, in :root and .dark).
   2. Calipa roles: what a colour means here. Money moving up or down, a run that
-     needs a person, text Claude wrote, a claim code verified, exception severity.
+     needs a person, model-written text, a claim code verified, exception severity.
   3. shadcn roles, mapped onto the above so stock components inherit the look.
 
   Rules:
